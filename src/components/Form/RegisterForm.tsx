@@ -27,11 +27,20 @@ import { FiEye } from "react-icons/fi";
 import { FiEyeOff } from "react-icons/fi";
 import Link from "next/link";
 import { registerSchema } from "@/schemas/register-schema";
+import { useRouter } from "next/navigation";
+import { Loader2 } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "../ui/alert";
+import { RxCrossCircled } from "react-icons/rx";
+import { RxCheckCircled } from "react-icons/rx";
 
 const RegisterForm = () => {
   const [showConfirmPassword, setShowConfirmPassword] =
     useState<boolean>(false);
   const [showPassword, setShowPassword] = useState<boolean>(false);
+  const { push } = useRouter();
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isError, setIsError] = useState<string>("");
+  const [isSuccess, setIsSuccess] = useState<string>("");
 
   const form = useForm<z.infer<typeof registerSchema>>({
     resolver: zodResolver(registerSchema),
@@ -43,8 +52,34 @@ const RegisterForm = () => {
     },
   });
 
-  function onSubmit(values: z.infer<typeof registerSchema>) {
-    console.log(values);
+  async function onSubmit(values: z.infer<typeof registerSchema>) {
+    setIsLoading(true);
+    setIsError("");
+    setIsSuccess("");
+
+    const res = await fetch("/api/auth/register", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        fullname: values.fullname,
+        email: values.email,
+        password: values.password,
+      }),
+    });
+
+    if (res.ok) {
+      form.reset();
+      setTimeout(() => {
+        push("/login");
+      }, 9000);
+      setIsLoading(false);
+      setIsSuccess("Please check your email to verify your account");
+    } else {
+      setIsLoading(false);
+      setIsError("email already exits");
+    }
   }
 
   const handleShowConfirmPassword = () => {
@@ -70,6 +105,22 @@ const RegisterForm = () => {
         <CardContent>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+              {isError && (
+                <Alert variant="destructive">
+                  <RxCrossCircled className="h-4 w-4" />
+                  <AlertTitle>Error</AlertTitle>
+                  <AlertDescription>{isError}</AlertDescription>
+                </Alert>
+              )}
+              {isSuccess && (
+                <Alert className="border-green-500">
+                  <RxCheckCircled className="h-4 w-4" />
+                  <AlertTitle className="text-green-500">Success</AlertTitle>
+                  <AlertDescription className="text-green-500">
+                    {isSuccess}
+                  </AlertDescription>
+                </Alert>
+              )}
               <FormField
                 control={form.control}
                 name="fullname"
@@ -82,7 +133,7 @@ const RegisterForm = () => {
                           <IoMdPerson />
                         </span>
                         <Input
-                          placeholder="Enter your email"
+                          placeholder="Enter your fullname"
                           {...field}
                           className="pl-10 bg-gray-100 text-gray-800 border border-gray-300 rounded-md focus:border-blue-500 focus:ring-blue-500"
                         />
@@ -182,12 +233,19 @@ const RegisterForm = () => {
                   </FormItem>
                 )}
               />
-              <Button
-                type="submit"
-                className="w-full bg-primary hover:bg-primary-hover text-white font-medium py-2 rounded-md transition-all"
-              >
-                Register
-              </Button>
+              {isLoading ? (
+                <Button disabled className="w-full rounded-md ">
+                  <Loader2 className="animate-spin" />
+                  Please wait
+                </Button>
+              ) : (
+                <Button
+                  type="submit"
+                  className="w-full bg-primary hover:bg-primary-hover text-white font-medium py-2 rounded-md transition-all"
+                >
+                  Register
+                </Button>
+              )}
             </form>
           </Form>
           <div className="relative my-6">
