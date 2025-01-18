@@ -25,9 +25,19 @@ import {
 import { loginSchema } from "@/schemas/login-schema";
 import Link from "next/link";
 import { FiEye, FiEyeOff } from "react-icons/fi";
+import { signIn } from "next-auth/react";
+import { useRouter } from "next/navigation";
+import { Loader2 } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "../ui/alert";
+import { FaExclamationTriangle } from "react-icons/fa";
 
 const LoginForm = () => {
-  const [showPassword, setShowPassword] = useState<boolean>();
+  const [showPassword, setShowPassword] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [error, setError] = useState<{ title: string; message: string } | null>(
+    null
+  );
+  const { push } = useRouter();
 
   const form = useForm<z.infer<typeof loginSchema>>({
     resolver: zodResolver(loginSchema),
@@ -37,8 +47,33 @@ const LoginForm = () => {
     },
   });
 
-  function onSubmit(values: z.infer<typeof loginSchema>) {
-    console.log(values);
+  async function onSubmit(values: z.infer<typeof loginSchema>) {
+    setIsLoading(true);
+    setError(null);
+    const res = await signIn("credentials", {
+      redirect: false,
+      email: values.email,
+      password: values.password,
+    });
+
+    if (!res?.error) {
+      form.reset();
+      setIsLoading(false);
+      push("/");
+    } else {
+      setIsLoading(false);
+      if (res.error === "email not verified") {
+        setError({
+          title: "Email Not Verified",
+          message: "Please verify your email address before logging in.",
+        });
+      } else {
+        setError({
+          title: "Login Failed",
+          message: "Invalid email or password. Please try again.",
+        });
+      }
+    }
   }
 
   const handleShowPassword = () => {
@@ -60,6 +95,13 @@ const LoginForm = () => {
         <CardContent>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+              {error && (
+                <Alert variant="destructive">
+                  <FaExclamationTriangle className="h-4 w-4" />
+                  <AlertTitle>{error.title}</AlertTitle>
+                  <AlertDescription>{error.message}</AlertDescription>
+                </Alert>
+              )}
               <FormField
                 control={form.control}
                 name="email"
@@ -115,12 +157,19 @@ const LoginForm = () => {
                   </FormItem>
                 )}
               />
-              <Button
-                type="submit"
-                className="w-full bg-primary hover:bg-primary-hover text-white font-medium py-2 rounded-md transition-all"
-              >
-                Login
-              </Button>
+              {isLoading ? (
+                <Button disabled className="w-full rounded-md ">
+                  <Loader2 className="animate-spin mr-2" />
+                  Please wait
+                </Button>
+              ) : (
+                <Button
+                  type="submit"
+                  className="w-full bg-primary hover:bg-primary-hover text-white font-medium py-2 rounded-md transition-all"
+                >
+                  Login
+                </Button>
+              )}
             </form>
           </Form>
           <div className="relative my-6">
@@ -140,7 +189,7 @@ const LoginForm = () => {
           </Button>
           <div>
             <p className="text-gray-600 text-sm mt-8 text-center">
-              Don&apos;t have an account{" "}
+              Don&apos;t have an account?{" "}
               <Link
                 href="/register"
                 className="text-primary hover:underline font-semibold"

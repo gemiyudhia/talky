@@ -73,7 +73,7 @@ const RegisterForm = () => {
       form.reset();
       setTimeout(() => {
         push("/login");
-      }, 9000);
+      }, 4000);
       setIsLoading(false);
       setIsSuccess("Please check your email to verify your account");
     } else {

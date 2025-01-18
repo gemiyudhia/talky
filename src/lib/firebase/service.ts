@@ -82,3 +82,23 @@ export async function register(data: UserData) {
     }
   }
 }
+
+export async function login(data: { email: string }) {
+  const q = query(
+    collection(firestore, "users"),
+    where("email", "==", data.email)
+  );
+
+  const snapshot = await getDocs(q);
+
+  const user = snapshot.docs.map((doc) => ({
+    id: doc.id,
+    ...doc.data(),
+  }));
+
+  if (user.length > 0) {
+    return user[0];
+  } else {
+    return null;
+  }
+}
