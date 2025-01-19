@@ -183,6 +183,7 @@ const LoginForm = () => {
           <Button
             variant="outline"
             className="w-full flex items-center justify-center bg-gray-100 text-gray-800 border border-gray-300 hover:bg-secondary hover:text-white transition-all"
+            onClick={() => signIn("google", { redirect: false })}
           >
             <FaGoogle className="w-5 h-5 mr-2" />
             Login with Google

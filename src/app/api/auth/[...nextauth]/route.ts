@@ -1,8 +1,9 @@
-import { login } from "@/lib/firebase/service";
+import { login, loginWithGoogle } from "@/lib/firebase/service";
 import { UserData } from "@/types/UserData";
 import { compare } from "bcrypt";
 import NextAuth, { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
+import GoogleProvider from "next-auth/providers/google";
 
 const authOptions: NextAuthOptions = {
   session: {
@@ -53,6 +54,11 @@ const authOptions: NextAuthOptions = {
         }
       },
     }),
+
+    GoogleProvider({
+      clientId: process.env.GOOGLE_OAUTH_CLIENT_ID || "",
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
+    }),
   ],
 
   callbacks: {
@@ -64,6 +70,30 @@ const authOptions: NextAuthOptions = {
         token.email = customUser.email;
         token.fullname = customUser.fullname;
         token.role = customUser.role;
+      }
+
+      if (account?.provider === "google") {
+        const data: UserData = {
+          id: user.id,
+          fullname: user.name || "",
+          email: user.email || "",
+          type: "google",
+        };
+
+        await loginWithGoogle(
+          data,
+          (result: { status: boolean; data: UserData }) => {
+            if (result.status) {
+              token.id = result.data.id;
+              token.email = result.data.email;
+              token.fullname = result.data.fullname;
+              token.role = result.data.role;
+              token.type = result.data.type;
+              token.createdAt = result.data.createdAt;
+              token.pin = result.data.pin;
+            }
+          }
+        );
       }
       return token;
     },

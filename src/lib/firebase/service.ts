@@ -2,9 +2,11 @@ import { UserData } from "@/types/UserData";
 import {
   addDoc,
   collection,
+  doc,
   getDocs,
   getFirestore,
   query,
+  updateDoc,
   where,
 } from "firebase/firestore";
 import bcrypt from "bcrypt";
@@ -100,5 +102,65 @@ export async function login(data: { email: string }) {
     return user[0];
   } else {
     return null;
+  }
+}
+
+export async function loginWithGoogle(
+  data: UserData,
+  callback: (result: { status: boolean; data: UserData }) => void
+) {
+  const q = query(
+    collection(firestore, "users"),
+    where("email", "==", data.email)
+  );
+
+  const snapshot = await getDocs(q);
+
+  const user: UserData[] = snapshot.docs.map((doc) => ({
+    id: doc.id,
+    ...doc.data(),
+  }));
+
+  if (user.length > 0) {
+    data.role = user[0].role;
+    await updateDoc(doc(firestore, "users", user[0].id), data).then(() => {
+      callback({
+        status: true,
+        data: {
+          id: user[0].id,
+          fullname: data.fullname,
+          email: data.email,
+          pin: user[0].pin,
+          type: user[0].type,
+          role: data.role,
+          createdAt: user[0].createdAt,
+        },
+      });
+    });
+  } else {
+    data.role = "member";
+
+    // Generate a unique pin for the new user
+    const pin = await generateUniquePin();
+    const newUserRef = await addDoc(collection(firestore, "users"), {
+      fullname: data.fullname,
+      email: data.email,
+      role: data.role,
+      pin: pin,
+      type: "google",
+      createdAt: new Date().toISOString(),
+    });
+
+    callback({
+      status: true,
+      data: {
+        id: newUserRef.id,
+        fullname: data.fullname,
+        email: data.email,
+        pin: pin,
+        role: data.role,
+        createdAt: new Date().toISOString(),
+      },
+    });
   }
 }

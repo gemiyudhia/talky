@@ -7,4 +7,5 @@ export type UserData = {
   role?: string;
   friends?: string[]; 
   createdAt?: string; 
+  type?: string;
 };
