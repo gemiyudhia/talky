@@ -28,15 +28,14 @@ import { FiEye, FiEyeOff } from "react-icons/fi";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
-import { Alert, AlertDescription, AlertTitle } from "../ui/alert";
+import { Alert, AlertDescription } from "../ui/alert";
 import { FaExclamationTriangle } from "react-icons/fa";
+import { loginUser } from "@/lib/auth/loginUser";
 
 const LoginForm = () => {
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [error, setError] = useState<{ title: string; message: string } | null>(
-    null
-  );
+  const [error, setError] = useState<string>("");
   const { push } = useRouter();
 
   const form = useForm<z.infer<typeof loginSchema>>({
@@ -49,30 +48,16 @@ const LoginForm = () => {
 
   async function onSubmit(values: z.infer<typeof loginSchema>) {
     setIsLoading(true);
-    setError(null);
-    const res = await signIn("credentials", {
-      redirect: false,
-      email: values.email,
-      password: values.password,
-    });
+    setError("");
 
-    if (!res?.error) {
-      form.reset();
+    const response = await loginUser(values);
+
+    if (response.success) {
       setIsLoading(false);
       push("/");
     } else {
       setIsLoading(false);
-      if (res.error === "email not verified") {
-        setError({
-          title: "Email Not Verified",
-          message: "Please verify your email address before logging in.",
-        });
-      } else {
-        setError({
-          title: "Login Failed",
-          message: "Invalid email or password. Please try again.",
-        });
-      }
+      setError(response.message);
     }
   }
 
@@ -98,8 +83,7 @@ const LoginForm = () => {
               {error && (
                 <Alert variant="destructive">
                   <FaExclamationTriangle className="h-4 w-4" />
-                  <AlertTitle>{error.title}</AlertTitle>
-                  <AlertDescription>{error.message}</AlertDescription>
+                  <AlertDescription>{error}</AlertDescription>
                 </Alert>
               )}
               <FormField

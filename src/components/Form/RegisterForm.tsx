@@ -33,6 +33,7 @@ import { Alert, AlertDescription, AlertTitle } from "../ui/alert";
 import { RxCrossCircled } from "react-icons/rx";
 import { RxCheckCircled } from "react-icons/rx";
 import { signIn } from "next-auth/react";
+import { registerUser } from "@/lib/auth/registerUser";
 
 const RegisterForm = () => {
   const [showConfirmPassword, setShowConfirmPassword] =
@@ -58,28 +59,14 @@ const RegisterForm = () => {
     setIsError("");
     setIsSuccess("");
 
-    const res = await fetch("/api/auth/register", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        fullname: values.fullname,
-        email: values.email,
-        password: values.password,
-      }),
-    });
+    const response = await registerUser(values);
 
-    if (res.ok) {
-      form.reset();
-      setTimeout(() => {
-        push("/login");
-      }, 4000);
+    if (response.success) {
       setIsLoading(false);
-      setIsSuccess("Please check your email to verify your account");
+      push("/");
     } else {
       setIsLoading(false);
-      setIsError("email already exits");
+      setIsError(response.message);
     }
   }
 
