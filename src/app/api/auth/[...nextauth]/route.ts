@@ -1,6 +1,5 @@
 import { login, loginWithGoogle } from "@/lib/firebase/service";
 import { UserData } from "@/types/UserData";
-import { compare } from "bcrypt";
 import NextAuth, { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import GoogleProvider from "next-auth/providers/google";
@@ -25,31 +24,27 @@ const authOptions: NextAuthOptions = {
             throw new Error("Email and password are required");
           }
 
-          const user: UserData | null = await login({
+          const loginResponse = await login({
             email: credentials.email,
+            password: credentials.password,
           });
 
-          if (!user) {
-            throw new Error("user not found");
+          if (!loginResponse.status) {
+            throw new Error(loginResponse.error || "Login failed");
           }
 
-          const isPasswordValid = await compare(
-            credentials.password,
-            user.password || ""
-          );
+          const user = loginResponse.user;
 
-          if (!isPasswordValid) {
-            throw new Error("invalid email or password");
+          if (!user?.emailVerified) {
+            throw new Error("Email not verified. Please verify your email.");
           }
 
           return {
             id: user.id,
-            fullname: user.fullname,
             email: user.email,
-            role: user.role,
           };
         } catch (error) {
-          console.log("authorization error: ", error);
+          console.error("Authorization error: ", error);
           return null;
         }
       },

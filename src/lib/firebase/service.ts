@@ -9,21 +9,21 @@ import {
   updateDoc,
   where,
 } from "firebase/firestore";
-import bcrypt from "bcrypt";
 import app from "./init";
 import { generateUniquePin } from "./generatePin";
 import {
   createUserWithEmailAndPassword,
   getAuth,
   sendEmailVerification,
+  signInWithEmailAndPassword,
 } from "firebase/auth";
 
 const firestore = getFirestore(app);
 const auth = getAuth(app);
 
 export async function register(data: UserData) {
-  if (!data.email || !data.password) {
-    throw new Error("Email and password are required");
+  if (!data.email) {
+    throw new Error("Email is required");
   }
 
   const q = query(
@@ -45,8 +45,6 @@ export async function register(data: UserData) {
       data.role = "member";
     }
 
-    data.password = await bcrypt.hash(data.password, 10);
-
     const pin = await generateUniquePin();
     data.pin = pin;
 
@@ -54,7 +52,7 @@ export async function register(data: UserData) {
       const userCredential = await createUserWithEmailAndPassword(
         auth,
         data.email,
-        data.password
+        data.password || ''
       );
 
       await sendEmailVerification(userCredential.user);
@@ -62,7 +60,6 @@ export async function register(data: UserData) {
       await addDoc(collection(firestore, "users"), {
         fullname: data.fullname,
         email: data.email,
-        password: data.password,
         pin: data.pin,
         role: data.role,
         createdAt: new Date().toISOString(),
@@ -85,23 +82,42 @@ export async function register(data: UserData) {
   }
 }
 
-export async function login(data: { email: string }) {
-  const q = query(
-    collection(firestore, "users"),
-    where("email", "==", data.email)
-  );
+export async function login(data: { email: string, password: string }) {
+  try {
+    const q = query(
+      collection(firestore, "users"),
+      where("email", "==", data.email)
+    );
 
-  const snapshot = await getDocs(q);
+    const snapshot = await getDocs(q);
 
-  const user = snapshot.docs.map((doc) => ({
-    id: doc.id,
-    ...doc.data(),
-  }));
+    if (snapshot.empty) {
+      return { status: false, error: "User not found" };
+    }
 
-  if (user.length > 0) {
-    return user[0];
-  } else {
-    return null;
+    const userCredential = await signInWithEmailAndPassword(
+      auth,
+      data.email,
+      data.password
+    );
+
+    const user = userCredential.user;
+
+    if (!user.emailVerified) {
+      return { status: false, error: "Email not verified" };
+    }
+
+    return {
+      status: true,
+      user: {
+        email: user.email,
+        id: user.uid,
+        emailVerified: user.emailVerified,
+      },
+    };
+  } catch (error) {
+    console.error("Login error:", error);
+    return { status: false, error: "Invalid credentials" };
   }
 }
 
