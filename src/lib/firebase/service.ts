@@ -2,11 +2,9 @@ import { UserData } from "@/types/UserData";
 import {
   addDoc,
   collection,
-  doc,
   getDocs,
   getFirestore,
   query,
-  updateDoc,
   where,
 } from "firebase/firestore";
 import app from "./init";
@@ -52,7 +50,7 @@ export async function register(data: UserData) {
       const userCredential = await createUserWithEmailAndPassword(
         auth,
         data.email,
-        data.password || ''
+        data.password || ""
       );
 
       await sendEmailVerification(userCredential.user);
@@ -82,7 +80,7 @@ export async function register(data: UserData) {
   }
 }
 
-export async function login(data: { email: string, password: string }) {
+export async function login(data: { email: string; password: string }) {
   try {
     const q = query(
       collection(firestore, "users"),
@@ -138,20 +136,17 @@ export async function loginWithGoogle(
   }));
 
   if (user.length > 0) {
-    data.role = user[0].role;
-    await updateDoc(doc(firestore, "users", user[0].id), data).then(() => {
-      callback({
-        status: true,
-        data: {
-          id: user[0].id,
-          fullname: data.fullname,
-          email: data.email,
-          pin: user[0].pin,
-          type: user[0].type,
-          role: data.role,
-          createdAt: user[0].createdAt,
-        },
-      });
+    callback({
+      status: true,
+      data: {
+        id: user[0].id,
+        fullname: data.fullname,
+        email: data.email,
+        pin: user[0].pin,
+        type: user[0].type,
+        role: data.role,
+        createdAt: user[0].createdAt,
+      },
     });
   } else {
     data.role = "member";
