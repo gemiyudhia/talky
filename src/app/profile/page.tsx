@@ -1,12 +1,12 @@
-import ProfileActions from '@/components/Profile/ProfileActions'
-import React from 'react'
+import ProfileInterface from "@/components/Profile/ProfileInterface";
+import React from "react";
 
 const ProfilePage = () => {
   return (
     <div>
-      <ProfileActions />
+      <ProfileInterface />
     </div>
-  )
-}
+  );
+};
 
-export default ProfilePage
+export default ProfilePage;
