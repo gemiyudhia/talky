@@ -1,18 +1,20 @@
-import React, { useState } from "react";
-import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
+import React, { useEffect, useState } from "react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from "../ui/tooltip";
-import { Button } from "../ui/button";
+} from "@/components/ui/tooltip";
+import { Button } from "@/components/ui/button";
 import { Search, Settings, UserPlus } from "lucide-react";
-import { ScrollArea } from "../ui/scroll-area";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import type { Chat } from "@/types/Chat";
 import { useSession } from "next-auth/react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import AddFriendModal from "./AddFriendModal";
+import FriendRequests from "./FriendRequests";
+import { fetchFriends } from "@/lib/firebase/service";
 
 type SidebarProps = {
   chats: Chat[];
@@ -29,11 +31,20 @@ const Sidebar = ({
 }: SidebarProps) => {
   const { data: session } = useSession();
   const [isAddFriendModalOpen, setIsAddFriendModalOpen] = useState(false);
+  const [friends, setFriends] = useState<{ id: string; fullname: string }[]>(
+    []
+  );
 
-  const handleAddFriend = (email: string) => {
-    // Implement the logic to add a friend here
-    console.log(`Adding friend with email: ${email}`);
-  };
+  useEffect(() => {
+    if (session?.user.id) {
+      const fetchAndSetFriends = async () => {
+        const friendList = await fetchFriends({userId: session.user.id});
+        setFriends(friendList);
+      };
+
+      fetchAndSetFriends();
+    }
+  }, [session?.user.id]);
 
   return (
     <div
@@ -98,6 +109,9 @@ const Sidebar = ({
           <TabsTrigger value="friends" className="flex-1">
             Friends
           </TabsTrigger>
+          <TabsTrigger value="requests" className="flex-1">
+            Requests
+          </TabsTrigger>
         </TabsList>
         <TabsContent value="chats">
           <ScrollArea className="h-[calc(100vh-12rem)]">
@@ -147,17 +161,38 @@ const Sidebar = ({
             </Button>
           </div>
           <ScrollArea className="h-[calc(100vh-16rem)]">
-            {/* Friend list will go here */}
-            <div className="p-4 text-center text-gray-500">
-              Your friends list will appear here
-            </div>
+            {friends.length > 0 ? (
+              friends.map((friend) => (
+                <div
+                  key={friend.id}
+                  className="p-4 flex items-center space-x-4 hover:bg-gray-100 transition-colors"
+                >
+                  <Avatar className="w-12 h-12">
+                    <AvatarImage
+                      src={`https://api.dicebear.com/6.x/micah/svg?seed=${friend.id}`}
+                    />
+                    <AvatarFallback>{friend.fullname[0]}</AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1">
+                    <p className="font-semibold">{friend.fullname}</p>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="p-4 text-center text-gray-500">
+                You have no friends yet.
+              </div>
+            )}
           </ScrollArea>
+        </TabsContent>
+        <TabsContent value="requests">
+          <FriendRequests />
         </TabsContent>
       </Tabs>
       <AddFriendModal
         isOpen={isAddFriendModalOpen}
         onClose={() => setIsAddFriendModalOpen(false)}
-        onAddFriend={handleAddFriend}
+        currentUserId={session?.user.id || ""}
       />
     </div>
   );

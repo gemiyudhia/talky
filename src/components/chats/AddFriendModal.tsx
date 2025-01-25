@@ -12,25 +12,42 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { UserPlus } from "lucide-react";
+import { addFriend } from "@/lib/friend/friend";
 
 type AddFriendModalProps = {
   isOpen: boolean;
   onClose: () => void;
-  onAddFriend: (email: string) => void;
+  currentUserId: string;
 };
 
-const AddFriendModal: React.FC<AddFriendModalProps> = ({
+const AddFriendModal = ({
   isOpen,
   onClose,
-  onAddFriend,
-}) => {
+  currentUserId,
+}: AddFriendModalProps) => {
   const [pin, setPin] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onAddFriend(pin);
-    setPin("");
-    onClose();
+    setIsLoading(true);
+
+    try {
+      const result = await addFriend(pin, currentUserId);
+
+      if (result.success) {
+        alert("Friend added successfully");
+        setPin("");
+        onClose();
+      } else {
+        alert(result.message || "Failed to add friend");
+      }
+    } catch (error) {
+      console.error(error);
+      alert("Failed to add friend");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -60,9 +77,15 @@ const AddFriendModal: React.FC<AddFriendModalProps> = ({
             </div>
           </div>
           <DialogFooter>
-            <Button type="submit" className="bg-primary hover:bg-primary-hover">
+            <Button
+              type="submit"
+              disabled={isLoading}
+              className="bg-primary hover:bg-primary-hover"
+            >
               <UserPlus className="mr-2 h-4 w-4 text-white" />
-              <p className="text-white">Add Friend</p>
+              <p className="text-white">
+                {isLoading ? "Adding..." : "Add Friend"}
+              </p>
             </Button>
           </DialogFooter>
         </form>

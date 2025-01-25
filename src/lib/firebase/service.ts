@@ -1,10 +1,15 @@
 import { UserData } from "@/types/UserData";
 import {
   addDoc,
+  arrayRemove,
+  arrayUnion,
   collection,
+  doc,
+  getDoc,
   getDocs,
   getFirestore,
   query,
+  updateDoc,
   where,
 } from "firebase/firestore";
 import app from "./init";
@@ -173,5 +178,162 @@ export async function loginWithGoogle(
         createdAt: new Date().toISOString(),
       },
     });
+  }
+}
+export async function findUserByPin(data: { pin: string }) {
+  const userRef = collection(firestore, "users");
+  const q = query(userRef, where("pin", "==", data.pin));
+  return await getDocs(q);
+}
+
+export async function updateFriendRequests(data: {
+  userId: string;
+  friendRequest: string;
+}) {
+  const userRef = doc(firestore, "users", data.userId);
+
+  await updateDoc(userRef, {
+    friendRequests: arrayUnion(data.friendRequest),
+  });
+}
+
+export async function updateUserFriends(data: {
+  userId: string;
+  friendList: string[];
+  friendRequestsList: string;
+}) {
+  const userRef = doc(firestore, "users", data.userId);
+  await updateDoc(userRef, {
+    friend: data.friendList,
+    friendRequests: data.friendRequestsList,
+  });
+}
+
+export async function getUserData(data: { userId: string }) {
+  const userRef = doc(firestore, "users", data.userId);
+
+  const userDoc = await getDoc(userRef);
+
+  return userDoc.data();
+}
+
+export async function addFriendToUser(data: {
+  userId: string;
+  friendId: string;
+}) {
+  const userRef = doc(firestore, "users", data.userId);
+  await updateDoc(userRef, {
+    friend: arrayUnion(data.friendId),
+  });
+}
+
+export async function fetchUserData(data: { userId: string }) {
+  try {
+    const userRef = doc(firestore, "users", data.userId);
+    const userDoc = await getDoc(userRef);
+
+    if (userDoc.exists()) {
+      return userDoc.data();
+    } else {
+      return null;
+    }
+  } catch (error) {
+    console.error("Error fetching user data:", error);
+    return null;
+  }
+}
+
+export async function fetchFriends(data: { userId: string }) {
+  const userData = await fetchUserData(data);
+  if (!userData) return [];
+
+  if (!userData.friends || userData.friends.length === 0) return [];
+
+  const friends = await Promise.all(
+    userData.friends.map(async (friendId: string) => {
+      const friendData = await fetchUserData({ userId: friendId });
+      return {
+        id: friendId,
+        fullname: friendData?.fullname || "unknown",
+      };
+    })
+  );
+
+  return friends;
+}
+
+export async function fetchUserDataFriendRequests(data: {
+  userId: string;
+}): Promise<UserData | undefined> {
+  try {
+    const userRef = doc(firestore, "users", data.userId);
+    const userDoc = await getDoc(userRef);
+    return userDoc.data() as UserData | undefined;
+  } catch (error) {
+    console.log("error fetching user data: ", error);
+    return undefined;
+  }
+}
+
+export async function fetchPendingFriendRequests(data: { userId: string }) {
+  try {
+    const userData = await fetchUserDataFriendRequests(data);
+    console.log("Fetched User Data:", userData);
+
+    if (!userData?.friendRequests) return null;
+
+    return await Promise.all(
+      userData.friendRequests
+        .map((req) => (typeof req === "string" ? JSON.parse(req) : req)) 
+        .filter((req) => req.status === "pending") 
+        .map(async (req) => {
+          const requesterDoc = await getDoc(
+            doc(firestore, "users", req.fromUserId)
+          );
+          const requesterData = requesterDoc.data();
+          return {
+            fromUserId: req.fromUserId,
+            fullname: requesterData?.fullname || "Unknown User",
+            avatarUrl: `https://api.dicebear.com/6.x/micah/svg?seed=${requesterData?.fullname}`,
+          };
+        })
+    );
+  } catch (error) {
+    console.log("error fetching friend requests: ", error);
+    return [];
+  }
+}
+
+export async function handleFriendRequests(
+  currentUserId: string,
+  fromUserId: string,
+  action: "accept" | "reject"
+) {
+  try {
+    const currentUserRef = doc(firestore, "users", currentUserId);
+
+    if (action === "accept") {
+      await updateDoc(currentUserRef, {
+        friends: arrayUnion(fromUserId),
+        friendRequests: arrayRemove({
+          fromUserId: fromUserId,
+          status: "pending",
+        }),
+      });
+
+      const requestRef = doc(firestore, "users", fromUserId);
+      await updateDoc(requestRef, {
+        friends: arrayUnion(currentUserId),
+      });
+    } else {
+      await updateDoc(currentUserRef, {
+        friendRequests: arrayRemove({
+          fromUserId: fromUserId,
+          status: "pending",
+        }),
+      });
+    }
+  } catch (error) {
+    console.error("Error processing friend request action:", error);
   }
 }

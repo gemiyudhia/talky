@@ -8,4 +8,8 @@ export type UserData = {
   friends?: string[];
   createdAt?: string;
   type?: string;
+  friendRequests?: {
+    fromUserId: string;
+    status: "pending" | "accepted" | "rejected";
+  }[];
 };
