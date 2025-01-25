@@ -188,7 +188,10 @@ export async function findUserByPin(data: { pin: string }) {
 
 export async function updateFriendRequests(data: {
   userId: string;
-  friendRequest: string;
+  friendRequest: {
+    fromUserId: string;
+    status: string;
+  };
 }) {
   const userRef = doc(firestore, "users", data.userId);
 
@@ -200,11 +203,14 @@ export async function updateFriendRequests(data: {
 export async function updateUserFriends(data: {
   userId: string;
   friendList: string[];
-  friendRequestsList: string;
+  friendRequestsList: {
+    fromUserId: string;
+    status: "pending" | "accepted" | "rejected";
+  }[];
 }) {
   const userRef = doc(firestore, "users", data.userId);
   await updateDoc(userRef, {
-    friend: data.friendList,
+    friends: data.friendList,
     friendRequests: data.friendRequestsList,
   });
 }
@@ -284,8 +290,8 @@ export async function fetchPendingFriendRequests(data: { userId: string }) {
 
     return await Promise.all(
       userData.friendRequests
-        .map((req) => (typeof req === "string" ? JSON.parse(req) : req)) 
-        .filter((req) => req.status === "pending") 
+        .map((req) => (typeof req === "string" ? JSON.parse(req) : req))
+        .filter((req) => req.status === "pending")
         .map(async (req) => {
           const requesterDoc = await getDoc(
             doc(firestore, "users", req.fromUserId)
@@ -311,8 +317,10 @@ export async function handleFriendRequests(
 ) {
   try {
     const currentUserRef = doc(firestore, "users", currentUserId);
+    const requestUserRef = doc(firestore, "users", fromUserId);
 
     if (action === "accept") {
+      // Update current user's friends and remove friend request
       await updateDoc(currentUserRef, {
         friends: arrayUnion(fromUserId),
         friendRequests: arrayRemove({
@@ -321,11 +329,12 @@ export async function handleFriendRequests(
         }),
       });
 
-      const requestRef = doc(firestore, "users", fromUserId);
-      await updateDoc(requestRef, {
+      // Update requester's friends
+      await updateDoc(requestUserRef, {
         friends: arrayUnion(currentUserId),
       });
     } else {
+      // For rejection, remove the friend request
       await updateDoc(currentUserRef, {
         friendRequests: arrayRemove({
           fromUserId: fromUserId,
@@ -335,5 +344,6 @@ export async function handleFriendRequests(
     }
   } catch (error) {
     console.error("Error processing friend request action:", error);
+    throw error;
   }
 }

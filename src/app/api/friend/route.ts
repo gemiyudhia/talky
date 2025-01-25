@@ -6,7 +6,6 @@ import {
   updateFriendRequests,
   updateUserFriends,
 } from "@/lib/firebase/service";
-import { UserData } from "@/types/UserData";
 
 export async function POST(request: NextRequest) {
   try {
@@ -45,10 +44,10 @@ export async function POST(request: NextRequest) {
     // Update friend requests for target user
     await updateFriendRequests({
       userId: targetUserId,
-      friendRequest: JSON.stringify({
+      friendRequest: {
         fromUserId: currentUserId,
         status: "pending",
-      }),
+      },
     });
 
     return NextResponse.json({
@@ -86,14 +85,9 @@ export async function PUT(request: NextRequest) {
     }
 
     // Update friend requests list
-    const updatedFriendRequests = userData.friendRequests?.map(
-      (friendRequest: UserData) =>
-        friendRequest.friendRequests === requestId
-          ? {
-              ...friendRequest,
-              status: action === "accept" ? "accepted" : "rejected",
-            }
-          : friendRequest
+    const updatedFriendRequests = userData.friendRequests?.filter(
+      (friendRequest: { fromUserId: string; status: string }) =>
+        friendRequest.fromUserId !== requestId
     );
 
     if (action === "accept") {
