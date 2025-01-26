@@ -17,6 +17,7 @@ import { fetchFriends } from "@/lib/firebase/service";
 import FriendsList from "./FriendsList";
 import ChatList from "./ChatList";
 import { motion, AnimatePresence } from "framer-motion";
+import { useNotificationStore } from "@/stores/notificationStore";
 
 type SidebarProps = {
   chats: Chat[];
@@ -37,16 +38,21 @@ const Sidebar = ({
     []
   );
 
+  const { pendingFriendRequests, startListeningToFriendRequests } =
+    useNotificationStore();
+
   useEffect(() => {
     if (session?.user.id) {
+      const unsubscribe = startListeningToFriendRequests(session.user.id);
       const fetchAndSetFriends = async () => {
         const friendList = await fetchFriends({ userId: session.user.id });
         setFriends(friendList);
       };
 
       fetchAndSetFriends();
+      return () => unsubscribe();
     }
-  }, [session?.user.id]);
+  }, [session?.user.id, startListeningToFriendRequests]);
 
   return (
     <motion.div
@@ -122,12 +128,14 @@ const Sidebar = ({
             <Users className="w-4 h-4 mr-2" />
             Friends
           </TabsTrigger>
-          <TabsTrigger
-            value="requests"
-            className="data-[state=active]:bg-white"
-          >
+          <TabsTrigger value="requests" className="relative">
             <UserPlus className="w-4 h-4 mr-2" />
             Requests
+            {pendingFriendRequests.length > 0 && (
+              <span className="absolute top-0 right-0 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white bg-red-500 rounded-full">
+                {pendingFriendRequests.length}
+              </span>
+            )}
           </TabsTrigger>
         </TabsList>
         <AnimatePresence mode="wait">

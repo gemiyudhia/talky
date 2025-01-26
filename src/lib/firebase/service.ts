@@ -12,7 +12,7 @@ import {
   updateDoc,
   where,
 } from "firebase/firestore";
-import app from "./init";
+import {app} from "./init";
 import { generateUniquePin } from "./generatePin";
 import {
   createUserWithEmailAndPassword,
