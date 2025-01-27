@@ -5,7 +5,7 @@ import { ProfileSetting } from "./ProfileSetting";
 import Sidebar from "./Sidebar";
 import ChatArea from "./ChatArea";
 
-const chats = [
+const initialChats = [
   {
     id: 1,
     name: "Alice Johnson",
@@ -84,6 +84,7 @@ export default function ChatInterface() {
   const [activeChat, setActiveChat] = useState<number | null>(null);
   const [messageInput, setMessageInput] = useState("");
   const [showSettings, setShowSettings] = useState(false);
+  const [chatList, setChatList] = useState(initialChats);
 
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
@@ -97,14 +98,15 @@ export default function ChatInterface() {
   return (
     <div className="flex h-full overflow-hidden bg-gray-100 rounded-xl shadow-xl">
       <Sidebar
-        chats={chats}
+        chats={chatList}
         activeChat={activeChat}
         setActiveChat={setActiveChat}
         setShowSettings={setShowSettings}
+        setChats={setChatList}
       />
       <ChatArea
         activeChat={activeChat}
-        chats={chats}
+        chats={chatList}
         messages={messages}
         messageInput={messageInput}
         setMessageInput={setMessageInput}

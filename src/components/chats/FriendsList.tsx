@@ -13,9 +13,14 @@ type Friend = {
 type FriendsListProps = {
   friends: Friend[];
   onAddFriend: () => void;
+  onFriendClick: (friend: Friend) => void;
 };
 
-const FriendsList: React.FC<FriendsListProps> = ({ friends, onAddFriend }) => {
+const FriendsList = ({
+  friends,
+  onAddFriend,
+  onFriendClick,
+}: FriendsListProps) => {
   return (
     <div>
       <div className="p-4">
@@ -37,7 +42,8 @@ const FriendsList: React.FC<FriendsListProps> = ({ friends, onAddFriend }) => {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -20 }}
                 transition={{ duration: 0.2 }}
-                className="p-4 flex items-center space-x-4 hover:bg-gray-100 transition-colors duration-200"
+                className="p-4 flex items-center space-x-4 cursor-pointer hover:bg-gray-100 transition-colors duration-200"
+                onClick={() => onFriendClick(friend)}
               >
                 <Avatar className="w-10 h-10">
                   <AvatarImage

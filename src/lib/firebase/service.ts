@@ -180,6 +180,7 @@ export async function loginWithGoogle(
     });
   }
 }
+
 export async function findUserByPin(data: { pin: string }) {
   const userRef = collection(firestore, "users");
   const q = query(userRef, where("pin", "==", data.pin));

@@ -19,8 +19,14 @@ import ChatList from "./ChatList";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNotificationStore } from "@/stores/notificationStore";
 
+type Friend = {
+  id: string;
+  fullname: string;
+};
+
 type SidebarProps = {
   chats: Chat[];
+  setChats: React.Dispatch<React.SetStateAction<Chat[]>>;
   activeChat: number | null;
   setActiveChat: (id: number | null) => void;
   setShowSettings: (show: boolean) => void;
@@ -28,6 +34,7 @@ type SidebarProps = {
 
 const Sidebar = ({
   chats,
+  setChats,
   activeChat,
   setActiveChat,
   setShowSettings,
@@ -53,6 +60,29 @@ const Sidebar = ({
       return () => unsubscribe();
     }
   }, [session?.user.id, startListeningToFriendRequests]);
+
+  const handleFriendClick = (friend: Friend) => {
+    // Cek apakah sudah ada chat yang ada dengan teman ini
+    const existingChat = chats.find((chat) => chat.name === friend.fullname);
+
+    if (existingChat) {
+      // Jika chat sudah ada, aktifkan chat tersebut
+      setActiveChat(existingChat.id);
+    } else {
+      // Jika belum ada chat, buat chat baru
+      const newChat: Chat = {
+        id: chats.length + 1, // atau gunakan uuid untuk id yang unik
+        name: friend.fullname,
+        online: true,
+        lastMessage: "",
+        time: "",
+        unread: 0,
+      };
+
+      setChats([...chats, newChat]);
+      setActiveChat(newChat.id);
+    }
+  };
 
   return (
     <motion.div
@@ -163,6 +193,7 @@ const Sidebar = ({
               <FriendsList
                 friends={friends}
                 onAddFriend={() => setIsAddFriendModalOpen(true)}
+                onFriendClick={handleFriendClick}
               />
             </motion.div>
           </TabsContent>
