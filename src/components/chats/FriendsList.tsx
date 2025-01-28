@@ -4,11 +4,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { UserPlus } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-
-type Friend = {
-  id: string;
-  fullname: string;
-};
+import { Friend } from "@/types/Friend";
 
 type FriendsListProps = {
   friends: Friend[];

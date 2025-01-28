@@ -1,7 +1,12 @@
+import { Timestamp } from "firebase/firestore";
+
 export type Message = {
-  id: number;
-  sender: string;
+  id: string;
+  name: string;
   content: string;
-  timestamp: string;
-  isSent: boolean;
-}
+  senderId: string;
+  timestamp: Timestamp;
+  read: number;
+  online: boolean;
+  lastMessage: string;
+};

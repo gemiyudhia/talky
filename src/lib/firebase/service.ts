@@ -8,7 +8,10 @@ import {
   getDoc,
   getDocs,
   getFirestore,
+  onSnapshot,
+  orderBy,
   query,
+  serverTimestamp,
   updateDoc,
   where,
 } from "firebase/firestore";
@@ -20,6 +23,8 @@ import {
   sendEmailVerification,
   signInWithEmailAndPassword,
 } from "firebase/auth";
+import { Message } from "@/types/Message";
+import { Chat } from "@/types/Chat";
 
 const firestore = getFirestore(app);
 const auth = getAuth(app);
@@ -348,3 +353,112 @@ export async function handleFriendRequests(
     throw error;
   }
 }
+
+export async function createNewChat(userId1: string, userId2: string) {
+  // Check if chat already exists
+  const chatsRef = collection(firestore, "chats");
+  const q = query(chatsRef, where("participants", "array-contains", userId1));
+
+  const querySnapshot = await getDocs(q);
+  const existingChat = querySnapshot.docs.find((doc) => {
+    const chat = doc.data();
+    return chat.participants.includes(userId2);
+  });
+
+  if (existingChat) {
+    return existingChat.id;
+  }
+
+  // Create new chat if none exists
+  const chatDoc = await addDoc(chatsRef, {
+    participants: [userId1, userId2],
+    createdAt: serverTimestamp(),
+    lastMessage: "",
+    lastMessageTimestamp: serverTimestamp(),
+  });
+
+  return chatDoc.id;
+}
+
+export const sendMessage = async (
+  chatId: string,
+  senderId: string,
+  content: string
+) => {
+  const messagesRef = collection(firestore, "chats", chatId, "messages");
+  const chatRef = doc(firestore, "chats", chatId);
+
+  // Add message
+  await addDoc(messagesRef, {
+    content,
+    senderId,
+    timestamp: serverTimestamp(),
+    read: false,
+  });
+
+  // Update chat's last message
+  await updateDoc(chatRef, {
+    lastMessage: content,
+    lastMessageTimestamp: serverTimestamp(),
+  });
+};
+
+export const subscribeToMessages = (
+  chatId: string,
+  callback: (messages: Message[]) => void
+) => {
+  const messagesRef = collection(firestore, "chats", chatId, "messages");
+  const q = query(messagesRef, orderBy("timestamp", "asc"));
+
+  return onSnapshot(q, (snapshot) => {
+    const messages = snapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    })) as Message[];
+    callback(messages);
+  });
+};
+
+export const subscribeToChats = (
+  userId: string,
+  callback: (chats: Chat[]) => void
+) => {
+  const chatsRef = collection(firestore, "chats");
+  const q = query(
+    chatsRef,
+    where("participants", "array-contains", userId),
+    orderBy("lastMessageTimestamp", "desc")
+  );
+
+  return onSnapshot(q, async (snapshot) => {
+    const chatsPromises = snapshot.docs.map(async (chatDoc) => {
+      const chatData = chatDoc.data();
+      const otherUserId = chatData.participants.find(
+        (id: string) => id !== userId
+      );
+
+      // Get other user's details
+      const userRef = doc(firestore, "users", otherUserId);
+      const userSnap = await getDoc(userRef);
+      const userData = userSnap.data();
+
+      return {
+        id: chatDoc.id,
+        name: userData?.fullname || "Unknown User",
+        lastMessage: chatData.lastMessage,
+        time: chatData.lastMessageTimestamp,
+        unread: 0, // You can implement unread count logic
+        online: false, // You can implement online status logic
+      };
+    });
+
+     try {
+       const chats = await Promise.all(chatsPromises);
+       callback(chats);
+     } catch (error) {
+       console.error("Error fetching chat details:", error);
+       // You might want to handle this error appropriately
+       callback([]);
+     }
+  });
+};

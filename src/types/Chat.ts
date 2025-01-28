@@ -1,8 +1,8 @@
 export type Chat = {
-  id: number;
+  id: string;
   name: string;
-  online: boolean;
   lastMessage: string;
   time: string;
   unread: number;
+  online: boolean;
 }

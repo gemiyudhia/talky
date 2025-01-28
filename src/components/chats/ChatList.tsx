@@ -1,20 +1,15 @@
-import type React from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { motion, AnimatePresence } from "framer-motion";
-import type { Chat } from "@/types/Chat";
+import { Message } from "@/types/Message";
 
 type ChatListProps = {
-  chats: Chat[];
-  activeChat: number | null;
-  setActiveChat: (id: number | null) => void;
+  chats: Message[];
+  activeChat: string | null;
+  setActiveChat: (id: string | null) => void;
 };
 
-const ChatList: React.FC<ChatListProps> = ({
-  chats,
-  activeChat,
-  setActiveChat,
-}) => {
+const ChatList = ({ chats, activeChat, setActiveChat }: ChatListProps) => {
   return (
     <ScrollArea className="h-[calc(100vh-12rem)]">
       <AnimatePresence>
@@ -49,20 +44,25 @@ const ChatList: React.FC<ChatListProps> = ({
               <div className="flex justify-between items-baseline">
                 <span className="font-semibold truncate">{chat.name}</span>
                 <span className="text-xs text-gray-500 flex-shrink-0">
-                  {chat.time}
+                  {new Date(
+                    chat.timestamp?.toDate?.() || Date.now()
+                  ).toLocaleTimeString([], {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
                 </span>
               </div>
               <p className="text-sm text-gray-600 truncate">
                 {chat.lastMessage}
               </p>
             </div>
-            {chat.unread > 0 && (
+            {chat.read > 0 && (
               <motion.span
                 initial={{ scale: 0 }}
                 animate={{ scale: 1 }}
                 className="bg-secondary text-white text-xs rounded-full h-5 w-5 flex items-center justify-center flex-shrink-0"
               >
-                {chat.unread}
+                {chat.read}
               </motion.span>
             )}
           </motion.button>

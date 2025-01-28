@@ -1,34 +1,39 @@
-import type React from "react"
-import { useCallback, useEffect, useRef } from "react"
-import { motion, AnimatePresence } from "framer-motion"
-import { Button } from "../ui/button"
-import { ArrowLeft, Send } from "lucide-react"
-import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar"
-import { ScrollArea } from "../ui/scroll-area"
-import { Input } from "../ui/input"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../ui/tooltip"
-import type { Message } from "@/types/Message"
-import type { Chat } from "@/types/Chat"
+"use client";
+
+import { useCallback, useEffect, useRef, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Button } from "../ui/button";
+import { ArrowLeft, Send } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
+import { ScrollArea } from "../ui/scroll-area";
+import { Input } from "../ui/input";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "../ui/tooltip";
+import type { Message } from "@/types/Message";
+import { sendMessage, subscribeToMessages } from "@/lib/firebase/service";
+import { useSession } from "next-auth/react";
 
 type ChatAreaProps = {
-  activeChat: number | null
-  chats: Chat[]
-  messages: Message[]
-  messageInput: string
-  setMessageInput: (input: string) => void
-  handleSendMessage: (e: React.FormEvent) => void
-  setActiveChat: (id: number | null) => void
-}
+  activeChat: string | null;
+  chats: Message[];
+  messageInput: string;
+  setMessageInput: (input: string) => void;
+  setActiveChat: (id: string | null) => void;
+};
 
-const ChatArea: React.FC<ChatAreaProps> = ({
+const ChatArea = ({
   activeChat,
   chats,
-  messages,
   messageInput,
   setMessageInput,
-  handleSendMessage,
   setActiveChat,
-}) => {
+}: ChatAreaProps) => {
+  const { data: session } = useSession();
+  const [messages, setMessages] = useState<Message[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = useCallback(() => {
@@ -37,7 +42,37 @@ const ChatArea: React.FC<ChatAreaProps> = ({
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages, scrollToBottom]); // Added scrollToBottom to dependencies
+  }, [messages, scrollToBottom]);
+
+  useEffect(() => {
+    if (!activeChat) return;
+
+    // Subscribe to messages
+    const unsubscribe = subscribeToMessages(
+      activeChat.toString(),
+      (newMessages) => {
+        setMessages(newMessages);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [activeChat]);
+
+  const handleSendMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!messageInput.trim() || !session?.user?.id || !activeChat) return;
+
+    try {
+      await sendMessage(activeChat.toString(), session.user.id, messageInput);
+      setMessageInput("");
+    } catch (error) {
+      console.error("Error sending message:", error);
+    }
+  };
+
+  const isMessageSentByUser = (senderId: string) => {
+    return senderId === session?.user?.id;
+  };
 
   return (
     <motion.div
@@ -104,7 +139,9 @@ const ChatArea: React.FC<ChatAreaProps> = ({
                     exit={{ opacity: 0, y: -20 }}
                     transition={{ duration: 0.3 }}
                     className={`flex ${
-                      message.isSent ? "justify-end" : "justify-start"
+                      isMessageSentByUser(message.senderId)
+                        ? "justify-end"
+                        : "justify-start"
                     } mb-4`}
                   >
                     <motion.div
@@ -112,23 +149,35 @@ const ChatArea: React.FC<ChatAreaProps> = ({
                       animate={{ scale: 1 }}
                       transition={{ duration: 0.2 }}
                       className={`max-w-[70%] p-3 rounded-lg ${
-                        message.isSent ? "bg-primary text-white" : "bg-white"
+                        isMessageSentByUser(message.senderId)
+                          ? "bg-primary text-white"
+                          : "bg-white"
                       } shadow-md`}
                     >
-                      {!message.isSent &&
+                      {!isMessageSentByUser(message.senderId) &&
                         index > 0 &&
-                        messages[index - 1].isSent && (
+                        isMessageSentByUser(messages[index - 1].senderId) && (
                           <p className="text-xs text-gray-500 mb-1">
-                            {message.sender}
+                            {chats.find((c) => c.id === activeChat)?.name}
                           </p>
                         )}
                       <p>{message.content}</p>
                       <p
                         className={`text-xs ${
-                          message.isSent ? "text-gray-200" : "text-gray-500"
+                          isMessageSentByUser(message.senderId)
+                            ? "text-gray-200"
+                            : "text-gray-500"
                         } text-right mt-1`}
                       >
-                        {message.timestamp}
+                        {message.timestamp && message.timestamp.toDate
+                          ? new Date(message.timestamp.toDate()).toLocaleString(
+                              [],
+                              {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              }
+                            )
+                          : "Invalid date"}
                       </p>
                     </motion.div>
                   </motion.div>
@@ -194,7 +243,6 @@ const ChatArea: React.FC<ChatAreaProps> = ({
       </AnimatePresence>
     </motion.div>
   );
-}
+};
 
-export default ChatArea
-
+export default ChatArea;

@@ -8,27 +8,24 @@ import {
 } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
 import { Search, Settings, MessageCircle, Users, UserPlus } from "lucide-react";
-import type { Chat } from "@/types/Chat";
 import { useSession } from "next-auth/react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import AddFriendModal from "./AddFriendModal";
 import FriendRequests from "./FriendRequests";
-import { fetchFriends } from "@/lib/firebase/service";
+import { createNewChat, fetchFriends } from "@/lib/firebase/service";
 import FriendsList from "./FriendsList";
 import ChatList from "./ChatList";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNotificationStore } from "@/stores/notificationStore";
-
-type Friend = {
-  id: string;
-  fullname: string;
-};
+import { Friend } from "@/types/Friend";
+import { Message } from "@/types/Message";
+import { Timestamp } from "firebase/firestore";
 
 type SidebarProps = {
-  chats: Chat[];
-  setChats: React.Dispatch<React.SetStateAction<Chat[]>>;
-  activeChat: number | null;
-  setActiveChat: (id: number | null) => void;
+  chats: Message[];
+  setChats: React.Dispatch<React.SetStateAction<Message[]>>;
+  activeChat: string | null;
+  setActiveChat: (id: string | null) => void;
   setShowSettings: (show: boolean) => void;
 };
 
@@ -61,26 +58,31 @@ const Sidebar = ({
     }
   }, [session?.user.id, startListeningToFriendRequests]);
 
-  const handleFriendClick = (friend: Friend) => {
-    // Cek apakah sudah ada chat yang ada dengan teman ini
-    const existingChat = chats.find((chat) => chat.name === friend.fullname);
+  const handleFriendClick = async (friend: Friend) => {
+    if (!session?.user?.id) return;
 
-    if (existingChat) {
-      // Jika chat sudah ada, aktifkan chat tersebut
-      setActiveChat(existingChat.id);
-    } else {
-      // Jika belum ada chat, buat chat baru
-      const newChat: Chat = {
-        id: chats.length + 1, // atau gunakan uuid untuk id yang unik
-        name: friend.fullname,
-        online: true,
-        lastMessage: "",
-        time: "",
-        unread: 0,
-      };
+    try {
+      const chatId = await createNewChat(session.user.id, friend.id);
 
-      setChats([...chats, newChat]);
-      setActiveChat(newChat.id);
+      // Tambahkan chat baru ke state jika belum ada
+      const existingChat = chats.find((chat) => chat.id === chatId);
+      if (!existingChat) {
+        const newChat = {
+          id: chatId,
+          name: friend.fullname,
+          online: true,
+          lastMessage: "",
+          content: "",
+          senderId: session.user.id,
+          timestamp: Timestamp.fromDate(new Date()),
+          read: 0,
+        };
+        setChats([...chats, newChat]);
+      }
+
+      setActiveChat(chatId);
+    } catch (error) {
+      console.error("Error starting chat:", error);
     }
   };
 
