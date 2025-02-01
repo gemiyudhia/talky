@@ -100,6 +100,7 @@ const authOptions: NextAuthOptions = {
           email: token.email as string,
           fullname: token.fullname as string,
           role: token.role as string,
+          pin: token.pin as string,
         };
       }
       return session;
@@ -107,8 +108,8 @@ const authOptions: NextAuthOptions = {
   },
 
   pages: {
-    signIn: '/login'
-  }
+    signIn: "/login",
+  },
 };
 
 const handler = NextAuth(authOptions);

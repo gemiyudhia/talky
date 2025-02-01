@@ -1,37 +1,16 @@
 "use client";
 
-import { useState } from "react";
 import { Card, CardContent, CardFooter, CardHeader } from "../ui/card";
 import Link from "next/link";
-import { ArrowLeft, User } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { AvatarSection } from "./AvatarSection";
-import { EditableInput } from "./EditTableInput";
 import { PINSection } from "./PinSection";
 import { Separator } from "../ui/separator";
-import { ActionButtons } from "./ActionButtons";
-import { signOut } from "next-auth/react";
+import { signOut, useSession } from "next-auth/react";
+import { Button } from "../ui/button";
 
 export default function ProfileInterface() {
-  const [isEditing, setIsEditing] = useState<boolean>(false);
-  const [name, setName] = useState<string>("John Doe");
-  const [pin] = useState<string>("SFD239");
-
-  const [tempName, setTempName] = useState<string>(name);
-
-  const handleEdit = () => {
-    setIsEditing(true);
-    setTempName(name);
-  };
-
-  const handleSave = () => {
-    setName(tempName);
-    setIsEditing(false);
-  };
-
-  const handleCancel = () => {
-    setIsEditing(false);
-    setTempName(name);
-  };
+  const { data: session } = useSession();
 
   const handleLogout = () => {
     signOut();
@@ -44,27 +23,22 @@ export default function ProfileInterface() {
           <Link href="/" className="absolute top-4 left-4">
             <ArrowLeft className="h-6 w-6 text-white" />
           </Link>
-          <AvatarSection name={name} />
+          <AvatarSection fullname={session?.user.fullname || ""}>
+            {session?.user.fullname}
+          </AvatarSection>
         </CardHeader>
         <CardContent className="p-6 space-y-6">
-          <EditableInput
-            label="Name"
-            icon={<User className="h-5 w-5 text-gray-400" />}
-            value={isEditing ? tempName : name}
-            onChange={setTempName}
-            disabled={!isEditing}
-          />
-          <PINSection pin={pin} />
+          <PINSection>{session?.user.pin}</PINSection>
         </CardContent>
         <Separator />
         <CardFooter>
-          <ActionButtons
-            isEditing={isEditing}
-            onSave={handleSave}
-            onCancel={handleCancel}
-            onEdit={handleEdit}
-            onLogout={handleLogout}
-          />
+          <Button
+            className="w-full bg-secondary hover:bg-secondary-hover text-white font-semibold hover:text-white"
+            variant="outline"
+            onClick={() => handleLogout}
+          >
+            Logout
+          </Button>
         </CardFooter>
       </Card>
     </div>

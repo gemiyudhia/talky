@@ -37,11 +37,21 @@ const ChatArea = ({
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = useCallback(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    messagesEndRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "end",
+    });
   }, []);
 
   useEffect(() => {
     scrollToBottom();
+  }, [messages, scrollToBottom]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      scrollToBottom();
+    }, 100);
+    return () => clearTimeout(timer);
   }, [messages, scrollToBottom]);
 
   useEffect(() => {
@@ -80,7 +90,7 @@ const ChatArea = ({
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.3 }}
-      className={`flex-1 flex flex-col transition-all duration-300 ease-in-out ${
+      className={`flex-1 flex flex-col h-screen overflow-hidden transition-all duration-300 ease-in-out ${
         !activeChat ? "hidden md:flex" : ""
       } md:w-[calc(100%-320px)] lg:w-[calc(100%-24rem)]`}
     >
@@ -92,7 +102,7 @@ const ChatArea = ({
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
             transition={{ duration: 0.3 }}
-            className="flex-1 flex flex-col"
+            className="flex-1 flex flex-col h-full overflow-hidden"
           >
             <motion.div
               initial={{ opacity: 0 }}
@@ -129,61 +139,62 @@ const ChatArea = ({
                 </p>
               </div>
             </motion.div>
-            <ScrollArea className="flex-1 p-4">
-              <AnimatePresence>
-                {messages.map((message, index) => (
-                  <motion.div
-                    key={message.id}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -20 }}
-                    transition={{ duration: 0.3 }}
-                    className={`flex ${
-                      isMessageSentByUser(message.senderId)
-                        ? "justify-end"
-                        : "justify-start"
-                    } mb-4`}
-                  >
+            <ScrollArea className="flex-1 p-4 overflow-y-auto">
+              <div className="flex flex-col min-h-full">
+                <AnimatePresence>
+                  {messages.map((message, index) => (
                     <motion.div
-                      initial={{ scale: 0.9 }}
-                      animate={{ scale: 1 }}
-                      transition={{ duration: 0.2 }}
-                      className={`max-w-[70%] p-3 rounded-lg ${
+                      key={message.id}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -20 }}
+                      transition={{ duration: 0.3 }}
+                      className={`flex ${
                         isMessageSentByUser(message.senderId)
-                          ? "bg-primary text-white"
-                          : "bg-white"
-                      } shadow-md`}
+                          ? "justify-end"
+                          : "justify-start"
+                      } mb-4`}
                     >
-                      {!isMessageSentByUser(message.senderId) &&
-                        index > 0 &&
-                        isMessageSentByUser(messages[index - 1].senderId) && (
-                          <p className="text-xs text-gray-500 mb-1">
-                            {chats.find((c) => c.id === activeChat)?.name}
-                          </p>
-                        )}
-                      <p>{message.content}</p>
-                      <p
-                        className={`text-xs ${
+                      <motion.div
+                        initial={{ scale: 0.9 }}
+                        animate={{ scale: 1 }}
+                        transition={{ duration: 0.2 }}
+                        className={`max-w-[70%] p-3 rounded-lg ${
                           isMessageSentByUser(message.senderId)
-                            ? "text-gray-200"
-                            : "text-gray-500"
-                        } text-right mt-1`}
+                            ? "bg-primary text-white"
+                            : "bg-white"
+                        } shadow-md`}
                       >
-                        {message.timestamp && message.timestamp.toDate
-                          ? new Date(message.timestamp.toDate()).toLocaleString(
-                              [],
-                              {
+                        {!isMessageSentByUser(message.senderId) &&
+                          index > 0 &&
+                          isMessageSentByUser(messages[index - 1].senderId) && (
+                            <p className="text-xs text-gray-500 mb-1">
+                              {chats.find((c) => c.id === activeChat)?.name}
+                            </p>
+                          )}
+                        <p>{message.content}</p>
+                        <p
+                          className={`text-xs ${
+                            isMessageSentByUser(message.senderId)
+                              ? "text-gray-200"
+                              : "text-gray-500"
+                          } text-right mt-1`}
+                        >
+                          {message.timestamp && message.timestamp.toDate
+                            ? new Date(
+                                message.timestamp.toDate()
+                              ).toLocaleString([], {
                                 hour: "2-digit",
                                 minute: "2-digit",
-                              }
-                            )
-                          : "Invalid date"}
-                      </p>
+                              })
+                            : "Invalid date"}
+                        </p>
+                      </motion.div>
                     </motion.div>
-                  </motion.div>
-                ))}
-              </AnimatePresence>
-              <div ref={messagesEndRef} />
+                  ))}
+                </AnimatePresence>
+                <div ref={messagesEndRef} />
+              </div>
             </ScrollArea>
 
             <motion.form
@@ -191,7 +202,7 @@ const ChatArea = ({
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.3 }}
               onSubmit={handleSendMessage}
-              className="p-4 bg-white flex items-center space-x-2"
+              className="p-4 bg-white flex items-center space-x-2 shrink-0"
             >
               <Input
                 placeholder="Type a message"
