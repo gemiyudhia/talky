@@ -42,11 +42,8 @@ const ChatList = ({ chats, activeChat, setActiveChat }: ChatListProps) => {
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex justify-between items-baseline">
-                <span className="font-semibold truncate">{chat.name}</span>
                 <span className="text-xs text-gray-500 flex-shrink-0">
-                  {new Date(
-                    chat.timestamp?.toDate?.() || Date.now()
-                  ).toLocaleTimeString([], {
+                  {new Date(chat.timestamp.toDate()).toLocaleTimeString([], {
                     hour: "2-digit",
                     minute: "2-digit",
                   })}

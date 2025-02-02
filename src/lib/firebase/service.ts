@@ -12,6 +12,7 @@ import {
   orderBy,
   query,
   serverTimestamp,
+  Timestamp,
   updateDoc,
   where,
 } from "firebase/firestore";
@@ -411,10 +412,26 @@ export const subscribeToMessages = (
   const q = query(messagesRef, orderBy("timestamp", "asc"));
 
   return onSnapshot(q, (snapshot) => {
-    const messages = snapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    })) as Message[];
+    const messages = snapshot.docs.map((doc) => {
+      const data = doc.data();
+
+      // Mengonversi timestamp menjadi Date atau ISO String
+      const timestamp =
+        data.timestamp instanceof Timestamp
+          ? data.timestamp.toDate()
+          : new Date();
+
+      return {
+        id: doc.id,
+        name: data.name, // Pastikan semua properti Message di sini
+        content: data.content,
+        senderId: data.senderId,
+        timestamp: timestamp.toISOString(),
+        read: data.read,
+        online: data.online,
+        lastMessage: data.lastMessage,
+      } as unknown as Message;
+    });
     callback(messages);
   });
 };
@@ -452,13 +469,13 @@ export const subscribeToChats = (
       };
     });
 
-     try {
-       const chats = await Promise.all(chatsPromises);
-       callback(chats);
-     } catch (error) {
-       console.error("Error fetching chat details:", error);
-       // You might want to handle this error appropriately
-       callback([]);
-     }
+    try {
+      const chats = await Promise.all(chatsPromises);
+      callback(chats);
+    } catch (error) {
+      console.error("Error fetching chat details:", error);
+      // You might want to handle this error appropriately
+      callback([]);
+    }
   });
 };

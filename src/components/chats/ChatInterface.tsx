@@ -5,26 +5,35 @@ import { ProfileSetting } from "./ProfileSetting";
 import Sidebar from "./Sidebar";
 import ChatArea from "./ChatArea";
 import { useSession } from "next-auth/react";
-import { subscribeToMessages } from "@/lib/firebase/service";
 import { Message } from "@/types/Message";
 
 export default function ChatInterface() {
-  const {data: session} = useSession()
+  const { data: session } = useSession();
   const [activeChat, setActiveChat] = useState<string | null>(null);
   const [messageInput, setMessageInput] = useState("");
   const [showSettings, setShowSettings] = useState(false);
   const [chatList, setChatList] = useState<Message[]>([]);
 
-useEffect(() => {
-  if (!session?.user?.id) return;
+  useEffect(() => {
+    if (!session?.user?.id) return;
 
-  // Subscribe to user's chats
-  const unsubscribe = subscribeToMessages(session.user.id, (updatedChats) => {
-    return setChatList(updatedChats);
-  });
+    // Gunakan Server-Sent Events (SSE) untuk langganan real-time
+    const eventSource = new EventSource(
+      `/api/messages?userId=${session.user.id}`
+    );
 
-  return () => unsubscribe();
-}, [session?.user?.id]);
+    eventSource.onmessage = (event) => {
+      const updatedChats = JSON.parse(event.data);
+      setChatList(updatedChats);
+    };
+
+    eventSource.onerror = () => {
+      console.error("Error in event source");
+      eventSource.close();
+    };
+
+    return () => eventSource.close();
+  }, [session?.user?.id]);
 
   return (
     <div className="flex h-full overflow-hidden bg-gray-100 rounded-xl shadow-xl">

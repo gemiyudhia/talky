@@ -35,7 +35,7 @@ export default function ProfileInterface() {
           <Button
             className="w-full bg-secondary hover:bg-secondary-hover text-white font-semibold hover:text-white"
             variant="outline"
-            onClick={() => handleLogout}
+            onClick={handleLogout}
           >
             Logout
           </Button>

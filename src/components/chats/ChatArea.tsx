@@ -14,8 +14,8 @@ import {
   TooltipTrigger,
 } from "../ui/tooltip";
 import type { Message } from "@/types/Message";
-import { sendMessage, subscribeToMessages } from "@/lib/firebase/service";
 import { useSession } from "next-auth/react";
+import { Timestamp } from "firebase/firestore";
 
 type ChatAreaProps = {
   activeChat: string | null;
@@ -23,6 +23,27 @@ type ChatAreaProps = {
   messageInput: string;
   setMessageInput: (input: string) => void;
   setActiveChat: (id: string | null) => void;
+};
+
+const parseMessageTimestamp = (timestamp: Timestamp) => {
+  if (!timestamp) return null;
+
+  // Handle Firestore Timestamp format
+  if (
+    typeof timestamp === "object" &&
+    "seconds" in timestamp &&
+    "nanoseconds" in timestamp
+  ) {
+    return new Date(timestamp.seconds * 1000 + timestamp.nanoseconds / 1000000);
+  }
+
+  try {
+    return new Date(timestamp);
+  } catch (e) {
+    console.log(e);
+    console.error("Invalid timestamp:", timestamp);
+    return null;
+  }
 };
 
 const ChatArea = ({
@@ -35,6 +56,7 @@ const ChatArea = ({
   const { data: session } = useSession();
   const [messages, setMessages] = useState<Message[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const eventSourceRef = useRef<EventSource | null>(null);
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({
@@ -57,15 +79,23 @@ const ChatArea = ({
   useEffect(() => {
     if (!activeChat) return;
 
-    // Subscribe to messages
-    const unsubscribe = subscribeToMessages(
-      activeChat.toString(),
-      (newMessages) => {
-        setMessages(newMessages);
-      }
+    eventSourceRef.current = new EventSource(
+      `/api/messages/subscribe?chatId=${activeChat}`
     );
 
-    return () => unsubscribe();
+    eventSourceRef.current.onmessage = (event) => {
+      const newMessages = JSON.parse(event.data);
+      setMessages(newMessages);
+    };
+
+    eventSourceRef.current.onerror = (error) => {
+      console.error("EventSource failed:", error);
+      eventSourceRef.current?.close();
+    };
+
+    return () => {
+      eventSourceRef.current?.close();
+    };
   }, [activeChat]);
 
   const handleSendMessage = async (e: React.FormEvent) => {
@@ -73,7 +103,23 @@ const ChatArea = ({
     if (!messageInput.trim() || !session?.user?.id || !activeChat) return;
 
     try {
-      await sendMessage(activeChat.toString(), session.user.id, messageInput);
+      const response = await fetch("/api/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          chatId: activeChat,
+          userId: session.user.id,
+          content: messageInput,
+        }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "Failed to send message");
+      }
+
       setMessageInput("");
     } catch (error) {
       console.error("Error sending message:", error);
@@ -142,7 +188,7 @@ const ChatArea = ({
             <ScrollArea className="flex-1 p-4 overflow-y-auto">
               <div className="flex flex-col min-h-full">
                 <AnimatePresence>
-                  {messages.map((message, index) => (
+                  {messages.map((message) => (
                     <motion.div
                       key={message.id}
                       initial={{ opacity: 0, y: 20 }}
@@ -165,28 +211,15 @@ const ChatArea = ({
                             : "bg-white"
                         } shadow-md`}
                       >
-                        {!isMessageSentByUser(message.senderId) &&
-                          index > 0 &&
-                          isMessageSentByUser(messages[index - 1].senderId) && (
-                            <p className="text-xs text-gray-500 mb-1">
-                              {chats.find((c) => c.id === activeChat)?.name}
-                            </p>
-                          )}
                         <p>{message.content}</p>
-                        <p
-                          className={`text-xs ${
-                            isMessageSentByUser(message.senderId)
-                              ? "text-gray-200"
-                              : "text-gray-500"
-                          } text-right mt-1`}
-                        >
-                          {message.timestamp && message.timestamp.toDate
-                            ? new Date(
-                                message.timestamp.toDate()
-                              ).toLocaleString([], {
+                        <p>
+                          {message.timestamp
+                            ? parseMessageTimestamp(
+                                message.timestamp
+                              )?.toLocaleString([], {
                                 hour: "2-digit",
                                 minute: "2-digit",
-                              })
+                              }) || "Invalid date"
                             : "Invalid date"}
                         </p>
                       </motion.div>

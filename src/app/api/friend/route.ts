@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   addFriendToUser,
+  fetchUserData,
   findUserByPin,
   getUserData,
   updateFriendRequests,
@@ -120,6 +121,42 @@ export async function PUT(request: NextRequest) {
     console.error("Friend request response error:", error);
     return NextResponse.json(
       { success: false, message: "Error processing friend request response" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const userId = searchParams.get("userId");
+
+  if (!userId) {
+    return NextResponse.json({ error: "User ID is required" }, { status: 400 });
+  }
+
+  try {
+    const userData = await fetchUserData({ userId });
+    if (!userData) return NextResponse.json({ friends: [] });
+
+    if (!userData.friends || userData.friends.length === 0) {
+      return NextResponse.json({ friends: [] });
+    }
+
+    const friends = await Promise.all(
+      userData.friends.map(async (friendId: string) => {
+        const friendData = await fetchUserData({ userId: friendId });
+        return {
+          id: friendId,
+          fullname: friendData?.fullname || "unknown",
+        };
+      })
+    );
+
+    return NextResponse.json({ friends });
+  } catch (error) {
+    console.error("Error fetching friends:", error);
+    return NextResponse.json(
+      { error: "Failed to fetch friends" },
       { status: 500 }
     );
   }

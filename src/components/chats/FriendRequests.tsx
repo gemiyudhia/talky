@@ -7,10 +7,6 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Check, X, UserPlus, Loader2 } from "lucide-react";
 import { useSession } from "next-auth/react";
-import {
-  fetchPendingFriendRequests,
-  handleFriendRequests,
-} from "@/lib/firebase/service";
 import type { FriendRequest } from "@/types/FriendRequest";
 import {
   Tooltip,
@@ -30,11 +26,16 @@ const FriendRequests = () => {
 
       setIsLoading(true);
       try {
-        const request = await fetchPendingFriendRequests({
-          userId: session.user.id,
-        });
+        const response = await fetch(
+          `/api/friend/requests/pending?userId=${session.user.id}`
+        );
+        const data = await response.json();
 
-        setFriendRequests(request || []);
+        if (!response.ok) {
+          throw new Error(data.error || "Failed to fetch friend requests");
+        }
+
+        setFriendRequests(data.requests || []);
       } catch (error) {
         console.error("Failed to fetch friend requests:", error);
       } finally {
@@ -52,7 +53,23 @@ const FriendRequests = () => {
     if (!session?.user?.id) return;
 
     try {
-      await handleFriendRequests(session.user.id, userId, action);
+      const response = await fetch("/api/friend/requests/handle", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          currentUserId: session.user.id,
+          userId,
+          action,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || `Failed to ${action} friend request`);
+      }
 
       setFriendRequests((prevRequests) =>
         prevRequests.filter((request) => request.fromUserId !== userId)

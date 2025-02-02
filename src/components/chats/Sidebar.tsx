@@ -12,7 +12,6 @@ import { useSession } from "next-auth/react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import AddFriendModal from "./AddFriendModal";
 import FriendRequests from "./FriendRequests";
-import { createNewChat, fetchFriends } from "@/lib/firebase/service";
 import FriendsList from "./FriendsList";
 import ChatList from "./ChatList";
 import { motion, AnimatePresence } from "framer-motion";
@@ -48,9 +47,17 @@ const Sidebar = ({
   useEffect(() => {
     if (session?.user.id) {
       const unsubscribe = startListeningToFriendRequests(session.user.id);
+
       const fetchAndSetFriends = async () => {
-        const friendList = await fetchFriends({ userId: session.user.id });
-        setFriends(friendList);
+        try {
+          const response = await fetch(`/api/friend?userId=${session.user.id}`);
+          const data = await response.json();
+          if (data.friends) {
+            setFriends(data.friends);
+          }
+        } catch (error) {
+          console.error("Error fetching friends:", error);
+        }
       };
 
       fetchAndSetFriends();
@@ -62,25 +69,37 @@ const Sidebar = ({
     if (!session?.user?.id) return;
 
     try {
-      const chatId = await createNewChat(session.user.id, friend.id);
+      const response = await fetch("/api/friend/chats", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          userId: session.user.id,
+          friendId: friend.id,
+        }),
+      });
 
-      // Tambahkan chat baru ke state jika belum ada
-      const existingChat = chats.find((chat) => chat.id === chatId);
-      if (!existingChat) {
-        const newChat = {
-          id: chatId,
-          name: friend.fullname,
-          online: true,
-          lastMessage: "",
-          content: "",
-          senderId: session.user.id,
-          timestamp: Timestamp.fromDate(new Date()),
-          read: 0,
-        };
-        setChats([...chats, newChat]);
+      const data = await response.json();
+      if (data.chatId) {
+        // Add new chat to state if it doesn't exist
+        const existingChat = chats.find((chat) => chat.id === data.chatId);
+        if (!existingChat) {
+          const newChat = {
+            id: data.chatId,
+            name: friend.fullname,
+            content: "",
+            senderId: session.user.id,
+            timestamp: Timestamp.fromDate(new Date()),
+            read: 0,
+            online: true,
+            lastMessage: "",
+          };
+          setChats([...chats, newChat]);
+        }
+
+        setActiveChat(data.chatId);
       }
-
-      setActiveChat(chatId);
     } catch (error) {
       console.error("Error starting chat:", error);
     }
