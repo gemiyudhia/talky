@@ -43,7 +43,7 @@ const ChatList = ({ chats, activeChat, setActiveChat }: ChatListProps) => {
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex justify-between items-baseline">
-                <p className="font-semibold text-lg">{chat.name}</p>
+                <p className="font-semibold text-md">{chat.name}</p>
                 <span className="text-xs text-gray-500 flex-shrink-0">
                   {new Date(
                     chat.timestamp instanceof Timestamp
