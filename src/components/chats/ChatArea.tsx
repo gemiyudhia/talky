@@ -16,6 +16,7 @@ import {
 import type { Message } from "@/types/Message";
 import { useSession } from "next-auth/react";
 import { Timestamp } from "firebase/firestore";
+import { parseFirebaseTimestamp } from "@/utils/date";
 
 type ChatAreaProps = {
   activeChat: string | null;
@@ -44,7 +45,7 @@ const parseMessageTimestamp = (timestamp: Timestamp | Date) => {
   try {
     return new Date(timestamp);
   } catch (e) {
-    console.log(e)
+    console.log(e);
     console.error("Invalid timestamp:", timestamp);
     return null;
   }
@@ -60,12 +61,28 @@ const ChatArea = ({
   const { data: session } = useSession();
   const [messages, setMessages] = useState<Message[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const eventSourceRef = useRef<EventSource | null>(null);
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({
       behavior: "smooth",
       block: "end",
+    });
+  }, []);
+
+  const handleNewMessage = useCallback((rawMessage: Message) => {
+    setMessages((prev) => {
+      // Cek duplikasi message
+      if (prev.some((m) => m.id === rawMessage.id)) return prev;
+
+      // Replace temporary message dengan yang asli
+      const newMessages = prev.filter((m) => !m.isTemp);
+      return [
+        ...newMessages,
+        {
+          ...rawMessage,
+          timestamp: parseFirebaseTimestamp(rawMessage.timestamp),
+        },
+      ];
     });
   }, []);
 
@@ -76,75 +93,63 @@ const ChatArea = ({
   useEffect(() => {
     if (!activeChat) return;
 
-    eventSourceRef.current?.close();
-    eventSourceRef.current = new EventSource(
-      `/api/messages/subscribe?chatId=${activeChat}`
-    );
+    const es = new EventSource(`/api/messages/subscribe?chatId=${activeChat}`);
 
-    eventSourceRef.current.onmessage = (event) => {
-      const newMessages: Message[] = JSON.parse(event.data);
-      setMessages(newMessages);
-    };
+    es.addEventListener("message", (e) => {
+      try {
+        const message: Message = JSON.parse(e.data);
+        handleNewMessage(message);
+      } catch (error) {
+        console.error("Error parsing message:", error);
+      }
+    });
 
-    eventSourceRef.current.onerror = (error) => {
-      console.error("EventSource failed:", error);
-      setTimeout(() => {
-        eventSourceRef.current?.close();
-        eventSourceRef.current = new EventSource(
-          `/api/messages/subscribe?chatId=${activeChat}`
-        );
-      }, 1000);
+    es.onerror = (error) => {
+      console.error("SSE Error:", error);
+      es.close();
     };
 
     return () => {
-      eventSourceRef.current?.close();
+      es.close();
     };
-  }, [activeChat]);
+  }, [activeChat, handleNewMessage]);
 
+  // Perbaikan pada handleSendMessage
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!messageInput.trim() || !session?.user?.id || !activeChat) return;
 
-    // Generate temporary ID and timestamp
-    const tempMessageId = `temp-${Date.now()}`;
-    const tempTimestamp = {
-      seconds: Math.floor(Date.now() / 1000),
-      nanoseconds: (Date.now() % 1000) * 1000000,
-    };
-
+    // Optimistic update dengan temporary message
     const tempMessage: Message = {
-      id: tempMessageId,
+      id: `temp-${Date.now()}`,
       content: messageInput,
       name: session.user.fullname || "User",
       senderId: session.user.id,
-      timestamp: tempTimestamp as Timestamp,
+      timestamp: new Date(),
       read: false,
+      isTemp: true,
     };
 
     setMessages((prev) => [...prev, tempMessage]);
     setMessageInput("");
-    scrollToBottom();
 
     try {
       const response = await fetch("/api/messages", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           chatId: activeChat,
-          userId: session.user.id,
           content: messageInput,
+          tempId: tempMessage.id, // Kirim ID temporary ke server
         }),
       });
 
       if (!response.ok) {
-        setMessages((prev) => prev.filter((msg) => msg.id !== tempMessageId));
-        throw new Error("Failed to send message");
+        setMessages((prev) => prev.filter((m) => m.id !== tempMessage.id));
+        throw new Error("Gagal mengirim pesan");
       }
     } catch (error) {
-      console.error("Error sending message:", error);
-      alert("Failed to send message. Please try again.");
+      console.error("Error:", error);
     }
   };
 

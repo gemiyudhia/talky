@@ -2,6 +2,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { motion, AnimatePresence } from "framer-motion";
 import { Message } from "@/types/Message";
+import { Timestamp } from "firebase/firestore";
 
 type ChatListProps = {
   chats: Message[];
@@ -42,8 +43,13 @@ const ChatList = ({ chats, activeChat, setActiveChat }: ChatListProps) => {
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex justify-between items-baseline">
+                <p className="font-semibold text-lg">{chat.name}</p>
                 <span className="text-xs text-gray-500 flex-shrink-0">
-                  {new Date(chat.timestamp.toDate()).toLocaleTimeString([], {
+                  {new Date(
+                    chat.timestamp instanceof Timestamp
+                      ? chat.timestamp.toDate()
+                      : chat.timestamp
+                  ).toLocaleTimeString([], {
                     hour: "2-digit",
                     minute: "2-digit",
                   })}

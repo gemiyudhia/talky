@@ -5,8 +5,9 @@ export type Message = {
   name: string;
   content?: string;
   senderId: string;
-  timestamp: Timestamp;
-  read: number | boolean;
+  timestamp: Timestamp | Date; // Menerima kedua jenis timestamp
+  read: boolean;
   online?: boolean;
   lastMessage?: string;
+  isTemp?: boolean; // Tambahan field untuk identifikasi message temporary
 };

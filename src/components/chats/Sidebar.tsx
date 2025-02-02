@@ -91,7 +91,7 @@ const Sidebar = ({
             content: "",
             senderId: session.user.id,
             timestamp: Timestamp.fromDate(new Date()),
-            read: 0,
+            read: false,
             online: true,
             lastMessage: "",
           };
