@@ -76,30 +76,57 @@ const ChatArea = ({
   useEffect(() => {
     if (!activeChat) return;
 
-    eventSourceRef.current?.close();
-    eventSourceRef.current = new EventSource(
-      `/api/messages/subscribe?chatId=${activeChat}`
-    );
+    // Tutup koneksi yang ada
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close();
+      eventSourceRef.current = null;
+    }
 
-    eventSourceRef.current.onmessage = (event) => {
-      const newMessages: Message[] = JSON.parse(event.data);
-      setMessages(newMessages);
+    // Tambahkan timestamp untuk mencegah caching
+    const es = new EventSource(
+      `/api/messages/subscribe?chatId=${activeChat}&t=${Date.now()}`
+    );
+    eventSourceRef.current = es;
+
+    const handleMessage = (event: MessageEvent) => {
+      try {
+        const newMessages: Message[] = JSON.parse(event.data);
+        setMessages(newMessages);
+        scrollToBottom();
+      } catch (error) {
+        console.error("Error parsing message:", error);
+      }
     };
 
-    eventSourceRef.current.onerror = (error) => {
-      console.error("EventSource failed:", error);
+    const handleError = (error: Event) => {
+      console.error("EventSource error:", error);
+      es.close();
+
+      // Coba hubungkan kembali setelah jeda
       setTimeout(() => {
-        eventSourceRef.current?.close();
-        eventSourceRef.current = new EventSource(
-          `/api/messages/subscribe?chatId=${activeChat}`
-        );
+        if (!eventSourceRef.current) {
+          eventSourceRef.current = new EventSource(
+            `/api/messages/subscribe?chatId=${activeChat}&t=${Date.now()}`
+          );
+          eventSourceRef.current.onmessage = handleMessage;
+          eventSourceRef.current.onerror = handleError;
+        }
       }, 1000);
     };
 
-    return () => {
-      eventSourceRef.current?.close();
+    es.onmessage = handleMessage;
+    es.onerror = handleError;
+
+    // Debug: Log koneksi dibuka
+    es.onopen = () => {
+      console.log("SSE Connection opened");
     };
-  }, [activeChat, messages.length]);
+
+    return () => {
+      es.close();
+      eventSourceRef.current = null;
+    };
+  }, [activeChat, scrollToBottom]);
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
