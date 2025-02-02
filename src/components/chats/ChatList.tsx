@@ -53,7 +53,7 @@ const ChatList = ({ chats, activeChat, setActiveChat }: ChatListProps) => {
                 {chat.lastMessage}
               </p>
             </div>
-            {chat.read > 0 && (
+            {typeof chat.read === "number" && chat.read > 0 && (
               <motion.span
                 initial={{ scale: 0 }}
                 animate={{ scale: 1 }}

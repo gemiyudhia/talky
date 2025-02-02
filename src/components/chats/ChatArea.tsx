@@ -25,10 +25,14 @@ type ChatAreaProps = {
   setActiveChat: (id: string | null) => void;
 };
 
-const parseMessageTimestamp = (timestamp: Timestamp) => {
+const parseMessageTimestamp = (timestamp: Timestamp | Date) => {
   if (!timestamp) return null;
 
   // Handle Firestore Timestamp format
+  if (timestamp instanceof Date) {
+    return timestamp;
+  }
+
   if (
     typeof timestamp === "object" &&
     "seconds" in timestamp &&
@@ -40,7 +44,7 @@ const parseMessageTimestamp = (timestamp: Timestamp) => {
   try {
     return new Date(timestamp);
   } catch (e) {
-    console.log(e);
+    console.log(e)
     console.error("Invalid timestamp:", timestamp);
     return null;
   }
@@ -70,27 +74,26 @@ const ChatArea = ({
   }, [messages, scrollToBottom]);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      scrollToBottom();
-    }, 100);
-    return () => clearTimeout(timer);
-  }, [messages, scrollToBottom]);
-
-  useEffect(() => {
     if (!activeChat) return;
 
+    eventSourceRef.current?.close();
     eventSourceRef.current = new EventSource(
       `/api/messages/subscribe?chatId=${activeChat}`
     );
 
     eventSourceRef.current.onmessage = (event) => {
-      const newMessages = JSON.parse(event.data);
+      const newMessages: Message[] = JSON.parse(event.data);
       setMessages(newMessages);
     };
 
     eventSourceRef.current.onerror = (error) => {
       console.error("EventSource failed:", error);
-      eventSourceRef.current?.close();
+      setTimeout(() => {
+        eventSourceRef.current?.close();
+        eventSourceRef.current = new EventSource(
+          `/api/messages/subscribe?chatId=${activeChat}`
+        );
+      }, 1000);
     };
 
     return () => {
@@ -101,6 +104,26 @@ const ChatArea = ({
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!messageInput.trim() || !session?.user?.id || !activeChat) return;
+
+    // Generate temporary ID and timestamp
+    const tempMessageId = `temp-${Date.now()}`;
+    const tempTimestamp = {
+      seconds: Math.floor(Date.now() / 1000),
+      nanoseconds: (Date.now() % 1000) * 1000000,
+    };
+
+    const tempMessage: Message = {
+      id: tempMessageId,
+      content: messageInput,
+      name: session.user.fullname || "User",
+      senderId: session.user.id,
+      timestamp: tempTimestamp as Timestamp,
+      read: false,
+    };
+
+    setMessages((prev) => [...prev, tempMessage]);
+    setMessageInput("");
+    scrollToBottom();
 
     try {
       const response = await fetch("/api/messages", {
@@ -116,19 +139,20 @@ const ChatArea = ({
       });
 
       if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || "Failed to send message");
+        setMessages((prev) => prev.filter((msg) => msg.id !== tempMessageId));
+        throw new Error("Failed to send message");
       }
-
-      setMessageInput("");
     } catch (error) {
       console.error("Error sending message:", error);
+      alert("Failed to send message. Please try again.");
     }
   };
 
   const isMessageSentByUser = (senderId: string) => {
     return senderId === session?.user?.id;
   };
+
+  const activeChatData = chats.find((c) => c.id === activeChat);
 
   return (
     <motion.div
@@ -147,13 +171,11 @@ const ChatArea = ({
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
-            transition={{ duration: 0.3 }}
             className="flex-1 flex flex-col h-full overflow-hidden"
           >
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              transition={{ delay: 0.2 }}
               className="p-3 bg-primary flex items-center space-x-4"
             >
               <Button
@@ -166,65 +188,59 @@ const ChatArea = ({
               </Button>
               <Avatar className="w-10 h-10 bg-white">
                 <AvatarImage
-                  src={`https://api.dicebear.com/6.x/micah/svg?seed=${
-                    chats.find((c) => c.id === activeChat)?.name
-                  }`}
+                  src={`https://api.dicebear.com/6.x/micah/svg?seed=${activeChatData?.name}`}
                 />
                 <AvatarFallback>
-                  {chats.find((c) => c.id === activeChat)?.name[0]}
+                  {activeChatData?.name?.[0] || "C"}
                 </AvatarFallback>
               </Avatar>
               <div className="flex-1">
                 <h2 className="text-lg font-semibold text-white">
-                  {chats.find((c) => c.id === activeChat)?.name}
+                  {activeChatData?.name || "Chat"}
                 </h2>
                 <p className="text-sm text-gray-200">
-                  {chats.find((c) => c.id === activeChat)?.online
-                    ? "Online"
-                    : "Offline"}
+                  {activeChatData?.online ? "Online" : "Offline"}
                 </p>
               </div>
             </motion.div>
+
             <ScrollArea className="flex-1 p-4 overflow-y-auto">
               <div className="flex flex-col min-h-full">
                 <AnimatePresence>
-                  {messages.map((message) => (
-                    <motion.div
-                      key={message.id}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -20 }}
-                      transition={{ duration: 0.3 }}
-                      className={`flex ${
-                        isMessageSentByUser(message.senderId)
-                          ? "justify-end"
-                          : "justify-start"
-                      } mb-4`}
-                    >
+                  {messages.map((message) => {
+                    const timestamp = parseMessageTimestamp(message.timestamp);
+                    return (
                       <motion.div
-                        initial={{ scale: 0.9 }}
-                        animate={{ scale: 1 }}
-                        transition={{ duration: 0.2 }}
-                        className={`max-w-[70%] p-3 rounded-lg ${
+                        key={message.id}
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -20 }}
+                        className={`flex ${
                           isMessageSentByUser(message.senderId)
-                            ? "bg-primary text-white"
-                            : "bg-white"
-                        } shadow-md`}
+                            ? "justify-end"
+                            : "justify-start"
+                        } mb-4`}
                       >
-                        <p>{message.content}</p>
-                        <p>
-                          {message.timestamp
-                            ? parseMessageTimestamp(
-                                message.timestamp
-                              )?.toLocaleString([], {
+                        <div
+                          className={`max-w-[70%] p-3 rounded-lg ${
+                            isMessageSentByUser(message.senderId)
+                              ? "bg-primary text-white"
+                              : "bg-white"
+                          } shadow-md`}
+                        >
+                          <p>{message.content}</p>
+                          {timestamp && (
+                            <p className="text-xs mt-1 opacity-70">
+                              {timestamp.toLocaleTimeString([], {
                                 hour: "2-digit",
                                 minute: "2-digit",
-                              }) || "Invalid date"
-                            : "Invalid date"}
-                        </p>
+                              })}
+                            </p>
+                          )}
+                        </div>
                       </motion.div>
-                    </motion.div>
-                  ))}
+                    );
+                  })}
                 </AnimatePresence>
                 <div ref={messagesEndRef} />
               </div>
@@ -233,7 +249,6 @@ const ChatArea = ({
             <motion.form
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3 }}
               onSubmit={handleSendMessage}
               className="p-4 bg-white flex items-center space-x-2 shrink-0"
             >
@@ -249,7 +264,6 @@ const ChatArea = ({
                     initial={{ scale: 0, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
                     exit={{ scale: 0, opacity: 0 }}
-                    transition={{ duration: 0.2 }}
                   >
                     <TooltipProvider>
                       <Tooltip>
@@ -277,8 +291,6 @@ const ChatArea = ({
             key="no-active-chat"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.3 }}
             className="flex-1 flex items-center justify-center bg-gray-100"
           >
             <p className="text-gray-500">Select a chat to start messaging</p>
