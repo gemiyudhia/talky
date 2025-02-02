@@ -17,7 +17,6 @@ export default function ChatInterface() {
   useEffect(() => {
     if (!session?.user?.id) return;
 
-    // Gunakan Server-Sent Events (SSE) untuk langganan real-time
     const eventSource = new EventSource(
       `/api/messages?userId=${session.user.id}`
     );
@@ -25,15 +24,16 @@ export default function ChatInterface() {
     eventSource.onmessage = (event) => {
       try {
         const newChat: Message = JSON.parse(event.data);
-        setChatList((prev) => [...prev, newChat]); // Tambahkan chat baru ke daftar
+        setChatList((prevChats) => {
+          // Cegah duplikasi
+          if (!prevChats.some((chat) => chat.id === newChat.id)) {
+            return [...prevChats, newChat];
+          }
+          return prevChats;
+        });
       } catch (error) {
         console.error("Error parsing chat:", error);
       }
-    };
-
-    eventSource.onerror = () => {
-      console.error("Error in event source");
-      eventSource.close();
     };
 
     return () => eventSource.close();
