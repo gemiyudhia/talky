@@ -23,8 +23,12 @@ export default function ChatInterface() {
     );
 
     eventSource.onmessage = (event) => {
-      const updatedChats = JSON.parse(event.data);
-      setChatList(updatedChats);
+      try {
+        const newChat: Message = JSON.parse(event.data);
+        setChatList((prev) => [...prev, newChat]); // Tambahkan chat baru ke daftar
+      } catch (error) {
+        console.error("Error parsing chat:", error);
+      }
     };
 
     eventSource.onerror = () => {
