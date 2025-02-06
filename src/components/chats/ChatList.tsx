@@ -31,7 +31,7 @@ const ChatList = ({ chats, activeChat, setActiveChat }: ChatListProps) => {
                 <AvatarImage
                   src={`https://api.dicebear.com/6.x/micah/svg?seed=${chat.name}`}
                 />
-                <AvatarFallback>{chat.name[0]}</AvatarFallback>
+                <AvatarFallback>{chat.name?.[0]}</AvatarFallback>
               </Avatar>
               {chat.online && (
                 <motion.span
