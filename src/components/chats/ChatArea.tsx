@@ -16,6 +16,7 @@ import {
 import type { Message } from "@/types/Message";
 import { useSession } from "next-auth/react";
 import { Timestamp } from "firebase/firestore";
+import { initSocket, type Socket } from "@/lib/socket";
 
 type ChatAreaProps = {
   activeChat: string | null;
@@ -28,7 +29,6 @@ type ChatAreaProps = {
 const parseMessageTimestamp = (timestamp: Timestamp) => {
   if (!timestamp) return null;
 
-  // Handle Firestore Timestamp format
   if (
     typeof timestamp === "object" &&
     "seconds" in timestamp &&
@@ -56,6 +56,7 @@ const ChatArea = ({
   const { data: session } = useSession();
   const [messages, setMessages] = useState<Message[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const socketRef = useRef<Socket | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
 
   const scrollToBottom = useCallback(() => {
@@ -77,8 +78,47 @@ const ChatArea = ({
   }, [messages, scrollToBottom]);
 
   useEffect(() => {
+    // Inisialisasi Socket
+    socketRef.current = initSocket();
+
+    // Setup socket event listeners
+    socketRef.current.on("new-message", (message: Message) => {
+      setMessages((prev) => [...prev, message]);
+      scrollToBottom();
+    });
+
+    return () => {
+      if (socketRef.current) {
+        socketRef.current.off("new-message");
+      }
+    };
+  }, [scrollToBottom]);
+
+  useEffect(() => {
+    socketRef.current = initSocket();
+
+    // Tambahkan listener untuk event koneksi
+    socketRef.current.on("connect", () => {
+      console.log("✅ Connected to socket server");
+    });
+
+    socketRef.current.on("disconnect", () => {
+      console.log("❌ Disconnected from socket server");
+    });
+
+    socketRef.current.on("connect_error", (err: Error) => {
+      console.error("Socket connection error:", err.message);
+    });
+
+    return () => {
+      socketRef.current?.disconnect();
+    };
+  }, []);
+
+  useEffect(() => {
     if (!activeChat) return;
 
+    // Inisialisasi EventSource untuk streaming pesan
     eventSourceRef.current = new EventSource(
       `/api/messages/subscribe?chatId=${activeChat}`
     );
@@ -93,8 +133,12 @@ const ChatArea = ({
       eventSourceRef.current?.close();
     };
 
+    // Join chat room via socket
+    socketRef.current?.emit("join-chat", activeChat);
+
     return () => {
       eventSourceRef.current?.close();
+      socketRef.current?.emit("leave-chat", activeChat);
     };
   }, [activeChat]);
 
@@ -103,24 +147,37 @@ const ChatArea = ({
     if (!messageInput.trim() || !session?.user?.id || !activeChat) return;
 
     try {
+      // Persiapkan data sesuai dengan yang dibutuhkan API
+      const messageData = {
+        chatId: activeChat,
+        userId: session.user.id, // Sesuaikan dengan nama field yang diharapkan API
+        content: messageInput,
+      };
+
+      // Emit message melalui socket (gunakan struktur asli jika diperlukan)
+      const socketMessage = {
+        ...messageData,
+        id: Date.now().toString(),
+        timestamp: new Date(),
+      };
+      socketRef.current?.emit("send-message", socketMessage);
+
+      // Kirim pesan ke server dengan struktur yang diharapkan API
       const response = await fetch("/api/messages", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          chatId: activeChat,
-          userId: session.user.id,
-          content: messageInput,
-        }),
+        body: JSON.stringify(messageData), // Hanya kirim 3 field wajib
       });
 
       if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || "Failed to send message");
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to send message");
       }
 
       setMessageInput("");
+      scrollToBottom();
     } catch (error) {
       console.error("Error sending message:", error);
     }
@@ -212,7 +269,7 @@ const ChatArea = ({
                         } shadow-md`}
                       >
                         <p>{message.content}</p>
-                        <p>
+                        <p className="text-xs mt-1 opacity-70">
                           {message.timestamp
                             ? parseMessageTimestamp(
                                 message.timestamp
