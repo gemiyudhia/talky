@@ -16,6 +16,7 @@ import {
 import type { Message } from "@/types/Message";
 import { useSession } from "next-auth/react";
 import { Timestamp } from "firebase/firestore";
+import { initSocket, type Socket } from "@/lib/socket";
 
 type ChatAreaProps = {
   activeChat: string | null;
@@ -44,7 +45,7 @@ const parseMessageTimestamp = (timestamp: Timestamp | Date) => {
   try {
     return new Date(timestamp);
   } catch (e) {
-    console.log(e)
+    console.log(e);
     console.error("Invalid timestamp:", timestamp);
     return null;
   }
@@ -60,6 +61,7 @@ const ChatArea = ({
   const { data: session } = useSession();
   const [messages, setMessages] = useState<Message[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const socketRef = useRef<Socket | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
 
   const scrollToBottom = useCallback(() => {
@@ -74,8 +76,47 @@ const ChatArea = ({
   }, [messages, scrollToBottom]);
 
   useEffect(() => {
+    const timer = setTimeout(() => {
+      scrollToBottom();
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [messages, scrollToBottom]);
+
+  useEffect(() => {
+    // Inisialisasi Socket
+    socketRef.current = initSocket();
+
+    // Setup socket event listeners
+    socketRef.current.on("new-message", (message: Message) => {
+      setMessages((prev) => [...prev, message]);
+      scrollToBottom();
+    });
+
+    // Tambahkan listener untuk event koneksi
+    socketRef.current.on("connect", () => {
+      console.log("✅ Connected to socket server");
+    });
+
+    socketRef.current.on("disconnect", () => {
+      console.log("❌ Disconnected from socket server");
+    });
+
+    socketRef.current.on("connect_error", (err: Error) => {
+      console.error("Socket connection error:", err.message);
+    });
+
+    return () => {
+      if (socketRef.current) {
+        socketRef.current.off("new-message");
+        socketRef.current.disconnect();
+      }
+    };
+  }, [scrollToBottom]);
+
+  useEffect(() => {
     if (!activeChat) return;
 
+    // Inisialisasi EventSource untuk streaming pesan
     eventSourceRef.current?.close();
     eventSourceRef.current = new EventSource(
       `/api/messages/subscribe?chatId=${activeChat}`
@@ -96,8 +137,12 @@ const ChatArea = ({
       }, 1000);
     };
 
+    // Join chat room via socket
+    socketRef.current?.emit("join-chat", activeChat);
+
     return () => {
       eventSourceRef.current?.close();
+      socketRef.current?.emit("leave-chat", activeChat);
     };
   }, [activeChat]);
 
@@ -126,21 +171,34 @@ const ChatArea = ({
     scrollToBottom();
 
     try {
+      // Persiapkan data sesuai dengan yang dibutuhkan API
+      const messageData = {
+        chatId: activeChat,
+        userId: session.user.id,
+        content: messageInput,
+      };
+
+      // Emit message melalui socket
+      const socketMessage = {
+        ...messageData,
+        id: Date.now().toString(),
+        timestamp: new Date(),
+      };
+      socketRef.current?.emit("send-message", socketMessage);
+
+      // Kirim pesan ke server
       const response = await fetch("/api/messages", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          chatId: activeChat,
-          userId: session.user.id,
-          content: messageInput,
-        }),
+        body: JSON.stringify(messageData),
       });
 
       if (!response.ok) {
+        const errorData = await response.json();
         setMessages((prev) => prev.filter((msg) => msg.id !== tempMessageId));
-        throw new Error("Failed to send message");
+        throw new Error(errorData.error || "Failed to send message");
       }
     } catch (error) {
       console.error("Error sending message:", error);
